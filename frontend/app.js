@@ -371,16 +371,18 @@ function aprsMarker(kind, x, y, r, course = 0) {
   return `<circle cx="${x}" cy="${y}" r="${0.5 * r}" fill="${k.colour}"/>`;
 }
 
-/* The APRS map: OpenStreetMap from OpenFreeMap in the Dark Matter style,
+/* The street map under the APRS and aircraft pages: OpenStreetMap from
+ * OpenFreeMap in the Dark Matter style,
  * drawn by MapLibre - the same map, library and settings as FlightBoard's
  * dashboard. Roads, railways and boundaries are switched off and the names
- * dimmed, so the stations stay the brightest thing on it. The browser showing
+ * dimmed, so stations and aircraft stay the brightest things on it. The browser showing
  * the page fetches the tiles; OpenFreeMap asks for no key and sets no limits.
  * ?map=static, or anything failing to load, leaves a plain dark background
- * with the stations at their true distance and bearing.
+ * with everything at its true distance and bearing.
  *
  * The map is made once and kept: the page is rebuilt every poll, and the map
- * is moved into the new page rather than made again. */
+ * is moved into the new page rather than made again, and shared by the
+ * pages that use it. */
 const LIVE_MAP = new URLSearchParams(location.search).get('map') !== 'static';
 const LIVE_STYLE = 'https://tiles.openfreemap.org/styles/dark';
 const LIVE_LIB_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
@@ -404,7 +406,7 @@ const LIVE_PAINT = {
   landuse_park: ['fill-color', '#162229'],
   landcover_wood: ['fill-color', '#162229'],
 };
-const aprsMap = { div: null, map: null, ready: false, failed: !LIVE_MAP };
+const streetMap = { div: null, map: null, ready: false, failed: !LIVE_MAP };
 
 function loadAsset(tag, attrs) {
   return new Promise((resolve, reject) => {
@@ -415,15 +417,15 @@ function loadAsset(tag, attrs) {
   });
 }
 
-async function startAprsMap(onReady) {
-  aprsMap.div = Object.assign(document.createElement('div'), { className: 'gl' });
+async function startStreetMap(onReady) {
+  streetMap.div = Object.assign(document.createElement('div'), { className: 'gl' });
   try {
     await Promise.all([
       loadAsset('link', { rel: 'stylesheet', href: LIVE_LIB_CSS, integrity: LIVE_LIB_CSS_SRI, crossOrigin: 'anonymous' }),
       loadAsset('script', { src: LIVE_LIB_JS, integrity: LIVE_LIB_JS_SRI, crossOrigin: 'anonymous' }),
     ]);
     const map = new maplibregl.Map({
-      container: aprsMap.div, style: LIVE_STYLE, center: [state.station.lon, state.station.lat],
+      container: streetMap.div, style: LIVE_STYLE, center: [state.station.lon, state.station.lat],
       zoom: 8, interactive: false, attributionControl: false, fadeDuration: 0,
     });
     await new Promise((resolve, reject) => {
@@ -436,29 +438,29 @@ async function startAprsMap(onReady) {
       else if (layer.id.startsWith('place_')) map.setPaintProperty(layer.id, 'text-opacity', 0.45);
       else if (LIVE_PAINT[layer.id]) map.setPaintProperty(layer.id, ...LIVE_PAINT[layer.id]);
     }
-    aprsMap.map = map;
-    aprsMap.ready = true;
+    streetMap.map = map;
+    streetMap.ready = true;
   } catch (e) {
-    console.warn('live map unavailable, drawing stations on a plain background:', e.message);
-    aprsMap.failed = true;
+    console.warn('live map unavailable, using a plain background:', e.message);
+    streetMap.failed = true;
   }
   onReady();
 }
 
-function drawAprs(box, a) {
+// Put the street map in a page's box, centred on the station with rangeKm
+// reaching the shorter side, and return how to place things on it. Without
+// the map, the same projection is worked out by hand.
+function placeStreetMap(box, rangeKm) {
   const svg = box.querySelector('svg');
   const W = svg.clientWidth, H = svg.clientHeight;
-  if (!W || !H) return;
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  if (!W || !H) return null;
   const home = [state.station.lat, state.station.lon];
-  const rangeKm = a.range_km || 100;
   const kmPerLon = 111.32 * Math.cos(home[0] * Math.PI / 180);
   let project;
-  if (aprsMap.ready) {
-    if (aprsMap.div.parentNode !== box) box.prepend(aprsMap.div);
-    const map = aprsMap.map;
+  if (streetMap.ready) {
+    if (streetMap.div.parentNode !== box) box.prepend(streetMap.div);
+    const map = streetMap.map;
     map.resize();
-    // Fit the filter's range to the shorter side of the box.
     const metresPerPixel = rangeKm * 1000 / (Math.min(W, H) / 2);
     map.jumpTo({ center: [home[1], home[0]],
       zoom: Math.log2(40075016.686 * Math.cos(home[0] * Math.PI / 180) / (512 * metresPerPixel)) });
@@ -467,14 +469,24 @@ function drawAprs(box, a) {
     const k = Math.min(W, H) / 2 / rangeKm;
     project = (lat, lon) => [W / 2 + (lon - home[1]) * kmPerLon * k, H / 2 - (lat - home[0]) * 110.57 * k];
   }
+  box.querySelector('.mapcredit').hidden = !streetMap.ready;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
   const [hx, hy] = project(home[0], home[1]);
   const kmPx = (project(home[0], home[1] + 50 / kmPerLon)[0] - hx) / 50;
-  let g = '';
-  for (const ringMi of [25, 50]) {
-    const rr = ringMi * KM_PER_MI * kmPx;
-    g += `<circle cx="${hx}" cy="${hy}" r="${rr}" fill="none" stroke="#3a4a5c" stroke-dasharray="4 5"/>` +
-         `<text x="${hx + 0.4 * rem}" y="${hy - rr - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${ringMi} mi</text>`;
-  }
+  const rings = miles => miles.map(m => {
+    const rr = m * KM_PER_MI * kmPx;
+    return `<circle cx="${hx}" cy="${hy}" r="${rr}" fill="none" stroke="#3a4a5c" stroke-dasharray="4 5"/>` +
+           `<text x="${hx + 0.4 * rem}" y="${hy - rr - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${m} mi</text>`;
+  }).join('');
+  const homeDot = `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="#0b0e12" stroke-width="2"/>`;
+  return { svg, W, H, rem, project, rings, homeDot };
+}
+
+function drawAprs(box, a) {
+  const m = placeStreetMap(box, a.range_km || 100);
+  if (!m) return;
+  const { svg, W, H, rem, project } = m;
+  let g = m.rings([25, 50]);
   for (const s of a.stations) if (s.kind === 'mobile' && s.trail.length > 1)
     g += `<polyline points="${s.trail.map(([la, lo]) => project(la, lo).join(',')).join(' ')}" fill="none" stroke="${APRS_KIND.mobile.colour}" stroke-width="2" opacity="0.6"/>`;
   // Busy kinds first, so the ones worth finding are drawn on top.
@@ -483,9 +495,36 @@ function drawAprs(box, a) {
     const [x, y] = project(s.lat, s.lon);
     if (x >= 0 && y >= 0 && x <= W && y <= H) g += aprsMarker(s.kind, x, y, 0.55 * rem, s.course || 0);
   }
-  g += `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="#0b0e12" stroke-width="2"/>`;
-  svg.innerHTML = g;
-  box.querySelector('.mapcredit').hidden = !aprsMap.ready;
+  svg.innerHTML = g + m.homeDot;
+}
+
+// An airliner seen from above, pointing along its track.
+function planeIcon(x, y, track, r, colour) {
+  const a = (track || 0) * Math.PI / 180;
+  const pts = [[0, -1.6], [0.2, -0.6], [1.5, 0.1], [1.5, 0.4], [0.2, 0], [0.15, 1], [0.6, 1.4], [0.6, 1.6], [0, 1.4],
+               [-0.6, 1.6], [-0.6, 1.4], [-0.15, 1], [-0.2, 0], [-1.5, 0.4], [-1.5, 0.1], [-0.2, -0.6]];
+  const p = ([dx, dy]) => `${(x + r * (dx * Math.cos(a) - dy * Math.sin(a))).toFixed(1)},${(y + r * (dx * Math.sin(a) + dy * Math.cos(a))).toFixed(1)}`;
+  return `<polygon points="${pts.map(p).join(' ')}" fill="${colour}" stroke="#0b0e12" stroke-width="1"/>`;
+}
+
+// Far enough to hold nine aircraft in ten, so one straggler at the edge of
+// the receiver's reach doesn't shrink the rest to a cluster.
+function aircraftRangeKm(planes) {
+  const d = planes.map(p => p.km).sort((x, y) => x - y);
+  return Math.max(20, Math.ceil((d[Math.floor(d.length * 0.9)] || 20) / 10) * 10);
+}
+
+function drawAircraft(box, planes) {
+  const rangeKm = aircraftRangeKm(planes);
+  const m = placeStreetMap(box, rangeKm);
+  if (!m) return;
+  const { svg, W, H, rem, project } = m;
+  let g = m.rings([10, 25, 40].filter(mi => mi * KM_PER_MI < rangeKm * 1.3));
+  for (const p of [...planes].reverse()) {          // nearest drawn last, on top
+    const [x, y] = project(p.lat, p.lon);
+    if (x >= 0 && y >= 0 && x <= W && y <= H) g += planeIcon(x, y, p.track, 0.65 * rem, p.on_ground ? '#8b98a5' : SERIES[0]);
+  }
+  svg.innerHTML = g + m.homeDot;
 }
 
 // Keep as many rows as fit in a list, then say how many more there are.
@@ -497,6 +536,7 @@ function fitList(list, total) {
   if (total <= rows.length) return;
   const more = document.createElement('div');
   more.className = 'more';
+  more.textContent = `+${total} more`;      // measured with text in, not empty
   list.appendChild(more);
   while (rows.length && more.getBoundingClientRect().bottom > bottom()) rows.pop().remove();
   more.textContent = `+${total - rows.length} more`;
@@ -621,19 +661,53 @@ const PAGES = [
     }
     const legend = ['mobile', 'weather', 'object', 'digi', 'home'].map(k =>
       `<span><svg viewBox="0 0 16 16">${aprsMarker(k, 8, 8, 5)}</svg> ${APRS_KIND[k].name} ${counts[APRS_KIND[k].name] || 0}</span>`).join('');
-    const body = `<div class="aprs"><div class="aprsgrid">
-        <div class="mapbox aprsmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
+    const body = `<div class="aprs"><div class="mapgrid">
+        <div class="mapbox streetmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
         <div class="spots">` + stations.slice(0, 25).map(s => `<div class="station">
           <svg viewBox="0 0 18 18">${aprsMarker(s.kind, 9, 9, 5, s.course || 0)}</svg><span class="call mono">${s.call}</span>
           <span class="d">${mi(s.km)} mi ${dir8(s.bearing)}</span><span class="sub">${[ago(s), what(s)].filter(Boolean).join(' · ')}</span></div>`).join('') +
       `</div></div><div class="legend">${legend}<span>· last ${a.window_min} min</span></div></div>`;
     const draw = el => {
-      if (!aprsMap.div && !aprsMap.failed) startAprsMap(renderFeature);
-      drawAprs(el.querySelector('.aprsmap'), a);
+      if (!streetMap.div && !streetMap.failed) startStreetMap(renderFeature);
+      drawAprs(el.querySelector('.streetmap'), a);
       fitList(el.querySelector('.spots'), stations.length);
     };
     return { title, body, credit, draw };
   },
+  Object.assign(function aircraft() {
+    const a = state.aircraft, planes = a.aircraft || [];
+    const rangeMi = Math.round(aircraftRangeKm(planes) / KM_PER_MI);
+    const title = `Aircraft · ${planes.length} within ${rangeMi} mi${a.via === 'FlightBoard' ? ' · via FlightBoard' : ''}`;
+    const credit = 'Aircraft: your own ADS-B receiver';
+    if (!planes.length) return { title, credit, body: '<div class="empty">No aircraft with a position right now.</div>' };
+    const mi = km => km < 10 ? (km / KM_PER_MI).toFixed(1) : Math.round(km / KM_PER_MI);
+    const name = p => p.flight || p.registration || p.hex.toUpperCase();
+    // Flight levels from 18,000 ft, where US altimeters switch to standard pressure.
+    const alt = p => {
+      if (p.on_ground) return 'ground';
+      const h = Math.round(p.alt_baro / 100);
+      return h >= 180 ? `FL${h}` : `${(h * 100).toLocaleString()} ft`;
+    };
+    const climb = p => p.baro_rate > 300 ? ' ↑' : p.baro_rate < -300 ? ' ↓' : '';
+    const about = p => [p.origin && `${p.origin} → ${p.destination}`, p.airline, p.type].filter(Boolean).join(' · ');
+    const body = `<div class="aprs"><div class="mapgrid">
+        <div class="mapbox streetmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
+        <div class="spots">` + planes.slice(0, 25).map(p => `<div class="plane">
+          <span class="call mono">${name(p)}</span><span class="alt">${alt(p)}${climb(p)}</span>
+          <span class="sub">${about(p) || '&nbsp;'}</span><span class="d">${mi(p.km)} mi ${dir8(p.bearing)}</span></div>`).join('') +
+      `</div></div></div>`;
+    const draw = el => {
+      if (!streetMap.div && !streetMap.failed) startStreetMap(renderFeature);
+      drawAircraft(el.querySelector('.streetmap'), planes);
+      fitList(el.querySelector('.spots'), planes.length);
+    };
+    return { title, body, credit, draw };
+  }, {
+    // Only with a receiver to read from (AIRCRAFT_URL), and refreshed more
+    // often while it's up: aircraft cover a few miles in a normal poll.
+    available: () => state && !state.aircraft?.disabled,
+    poll_ms: 5000,
+  }),
   function alerts() {
     const list = state.spaceweather.alerts || [];
     const body = list.length
@@ -652,9 +726,13 @@ let page = 0;
 let drawn = null;
 const resized = new ResizeObserver(() => { if (drawn) drawn($('feature-body')); });
 
+// The pages whose source is switched on; a page with no available() always is.
+const activePages = () => PAGES.filter(p => !p.available || p.available());
+
 function renderFeature() {
   if (!state) return;
-  const p = PAGES[page % PAGES.length]();
+  const pages = activePages();
+  const p = pages[page % pages.length]();
   $('feature-title').textContent = p.title;
   $('feature-body').innerHTML = p.body;
   resized.disconnect();
@@ -664,12 +742,12 @@ function renderFeature() {
     $('feature-body').querySelectorAll('svg').forEach(el => resized.observe(el));
   }
   $('credit').textContent = p.credit;
-  $('dots').innerHTML = PAGES.length > 1
-    ? PAGES.map((_, i) => `<i class="${i === page % PAGES.length ? 'on' : ''}"></i>`).join('')
+  $('dots').innerHTML = pages.length > 1
+    ? pages.map((_, i) => `<i class="${i === page % pages.length ? 'on' : ''}"></i>`).join('')
     : '';
 }
 
-function nextPage() { page = (page + 1) % PAGES.length; renderFeature(); }
+function nextPage() { page = (page + 1) % activePages().length; renderFeature(); schedulePoll(); }
 
 let pageTimer = setInterval(nextPage, PAGE_MS);
 // On a touch screen a tap moves on, and the rotation restarts from there.
@@ -700,7 +778,14 @@ async function poll() {
   }
 }
 
+// Poll every POLL_MS, or sooner while a page that asks for it is showing.
+let pollTimer = null;
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  const pages = activePages(), showing = pages[page % pages.length];
+  pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, showing?.poll_ms || POLL_MS);
+}
+
 setInterval(tickClocks, 1000);
 tickClocks();
-poll();
-setInterval(poll, POLL_MS);
+poll().then(schedulePoll);

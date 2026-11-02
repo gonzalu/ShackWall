@@ -8,13 +8,14 @@ to, or a Raspberry Pi plugged into a monitor.
 > **Status: early.** The page layout, clocks, live space weather from NOAA, HF
 > band conditions from HAMQSL, US weather with antenna warnings from the
 > National Weather Service, amateur satellite passes, POTA spots, PSKReporter
-> band activity and APRS work. Aircraft and ships are still to come.
+> band activity, APRS and aircraft from your own ADS-B receiver work. Ships
+> are still to come.
 
 ## What it looks like
 
 On a 1080p TV: the column on the left stays put, and the big panel takes
-turns between the forecast, satellite passes, POTA spots, band activity, APRS
-and space weather alerts.
+turns between the forecast, satellite passes, POTA spots, band activity, APRS,
+aircraft and space weather alerts.
 
 ![The forecast page: 48 hours of temperature, wind against the antenna limit, and rain and thunder chances](img/forecast.png)
 
@@ -26,6 +27,8 @@ and space weather alerts.
 | Band activity from PSKReporter | On an iPad |
 
 ![APRS stations on a live map round the station, beside the newest ones heard](img/aprs.jpg)
+
+![Aircraft from the station's own ADS-B receiver on the same map, nearest first](img/aircraft.jpg)
 
 ## Install
 
@@ -131,6 +134,11 @@ The large panel takes turns between these pages:
   on FlightBoard's dashboard, fetched by the browser showing the page. Add
   `?map=static` to the page's address to keep a screen from fetching any map:
   the stations are then drawn on a plain background.
+- **Aircraft:** what your own ADS-B receiver sees, on the same map, nearest
+  first, with altitude (↑ climbing, ↓ descending) and, through FlightBoard,
+  the route, airline and aircraft type. Set `AIRCRAFT_URL` to FlightBoard's
+  `/api/aircraft` or to your receiver's `aircraft.json`; without it the page
+  is left out. While it is showing, the screen refreshes every 5 seconds.
 - **Space weather alerts:** NOAA's alerts, warnings and watches from the last
   24 hours.
 
@@ -184,7 +192,7 @@ in every request and caches politely.
 | Weather and alerts | [US National Weather Service](https://www.weather.gov/documentation/services-web-api) | Open data, free for any use; each product fetched only as often as its Cache-Control says it changes |
 | APRS stations | [APRS-IS](https://www.aprs-is.net/) | One receive-only connection, filtered on the server to your range; not aprs.fi, whose terms only allow fetching while someone is looking |
 | APRS map | [OpenFreeMap](https://openfreemap.org/), OpenStreetMap data | No key or limits; © OpenMapTiles © OpenStreetMap contributors, shown on the map |
-| Aircraft | Your own ADS-B receiver, through [FlightBoard](https://github.com/gonzalu/FlightBoard) | Your data |
+| Aircraft | Your own ADS-B receiver: [FlightBoard](https://github.com/gonzalu/FlightBoard)'s API or any dump1090/readsb `aircraft.json` | Your data, on your network; read every 5 seconds |
 | Ships | [aisstream.io](https://aisstream.io/) | Free key; server-side only |
 | World map | [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, as [world-atlas](https://github.com/topojson/world-atlas) TopoJSON | Public domain; world-atlas is ISC |
 

@@ -121,6 +121,10 @@ APRS_LOGIN = (_get("APRS_LOGIN") or (f"{CALLSIGN}-SW" if CALLSIGN else "")).uppe
 APRS_SERVER = _get("APRS_SERVER") or "rotate.aprs2.net"
 APRS_RANGE_KM = _float("APRS_RANGE_KM", 100)
 
+# Aircraft from your own ADS-B receiver: FlightBoard's /api/aircraft, or the
+# aircraft.json of any dump1090, readsb or tar1090. Blank leaves the page out.
+AIRCRAFT_URL = _get("AIRCRAFT_URL")
+
 # Sent in every request's User-Agent, so a data provider who sees a problem
 # can write to you instead of blocking you.
 CONTACT_EMAIL = _get("CONTACT_EMAIL")
