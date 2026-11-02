@@ -179,6 +179,7 @@ aside { display: grid; gap: 1rem; grid-template-rows: 1.3fr 1fr 0.8fr; min-heigh
 .plane .sub { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plane .d { font-size: 1.3rem; color: var(--dim); text-align: right; white-space: nowrap; }
 .legend { flex-wrap: wrap; }
+.streetmap.ships { flex: 1; min-height: 0; }
 .legend svg { width: 1.4rem; height: 1.4rem; vertical-align: -0.25rem; }
 .station > svg { width: 1.6rem; height: 1.6rem; align-self: center; }
 

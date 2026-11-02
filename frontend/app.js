@@ -107,11 +107,12 @@ function renderWeather(w) {
   const n = w.now;
   if (n) {
     // Wind and gusts the way a METAR writes them: SW 10 G25 mph.
-    const wind = n.wind_mph < 1 ? 'Calm'
+    const wind = n.wind_mph == null ? '' : n.wind_mph < 1 ? 'Calm'
       : `${compass(n.wind_dir)} ${round(n.wind_mph)}${n.gust_mph ? ' G' + round(n.gust_mph) : ''} mph`;
     // When the line is too long, the sky description gives way, not the wind.
     $('wx-now').innerHTML = `<b>${round(n.temp_f)}°</b>` +
-      (n.text ? `<span class="sky">${n.text}</span><span class="sep">·</span>` : '') + `<span>${wind}</span>`;
+      (n.text ? `<span class="sky">${n.text}</span>` : '') + (n.text && wind ? '<span class="sep">·</span>' : '') +
+      (wind ? `<span>${wind}</span>` : '');
   } else if (w.errors?.now || w.errors?.location || w.errors?.point) {
     $('wx-now').textContent = 'No observation';
   }
@@ -447,27 +448,37 @@ async function startStreetMap(onReady) {
   onReady();
 }
 
-// Put the street map in a page's box, centred on the station with rangeKm
-// reaching the shorter side, and return how to place things on it. Without
-// the map, the same projection is worked out by hand.
-function placeStreetMap(box, rangeKm) {
+// Put the street map in a page's box and return how to place things on it.
+// By default it is centred on the station with rangeKm reaching the shorter
+// side; given `frame` ([south, west, north, east]) it fits that area instead.
+// Without the map, the same projection is worked out by hand.
+function placeStreetMap(box, rangeKm, frame = null) {
   const svg = box.querySelector('svg');
   const W = svg.clientWidth, H = svg.clientHeight;
   if (!W || !H) return null;
   const home = [state.station.lat, state.station.lon];
   const kmPerLon = 111.32 * Math.cos(home[0] * Math.PI / 180);
+  // The middle of the view, and how many km the shorter side's half must hold.
+  let centre = home, halfKm = rangeKm;
+  if (frame) {
+    const [s, w, n, e] = frame;
+    centre = [(s + n) / 2, (w + e) / 2];
+    // Fit both directions: the box's own shape decides which one limits.
+    const kmTall = (n - s) * 110.57, kmWide = (e - w) * kmPerLon;
+    halfKm = Math.max(kmTall / 2 * Math.min(W, H) / H, kmWide / 2 * Math.min(W, H) / W) * 1.1;
+  }
   let project;
   if (streetMap.ready) {
     if (streetMap.div.parentNode !== box) box.prepend(streetMap.div);
     const map = streetMap.map;
     map.resize();
-    const metresPerPixel = rangeKm * 1000 / (Math.min(W, H) / 2);
-    map.jumpTo({ center: [home[1], home[0]],
-      zoom: Math.log2(40075016.686 * Math.cos(home[0] * Math.PI / 180) / (512 * metresPerPixel)) });
+    const metresPerPixel = halfKm * 1000 / (Math.min(W, H) / 2);
+    map.jumpTo({ center: [centre[1], centre[0]],
+      zoom: Math.log2(40075016.686 * Math.cos(centre[0] * Math.PI / 180) / (512 * metresPerPixel)) });
     project = (lat, lon) => { const p = map.project([lon, lat]); return [p.x, p.y]; };
   } else {
-    const k = Math.min(W, H) / 2 / rangeKm;
-    project = (lat, lon) => [W / 2 + (lon - home[1]) * kmPerLon * k, H / 2 - (lat - home[0]) * 110.57 * k];
+    const k = Math.min(W, H) / 2 / halfKm;
+    project = (lat, lon) => [W / 2 + (lon - centre[1]) * kmPerLon * k, H / 2 - (lat - centre[0]) * 110.57 * k];
   }
   box.querySelector('.mapcredit').hidden = !streetMap.ready;
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -525,6 +536,63 @@ function drawAircraft(box, planes) {
     if (x >= 0 && y >= 0 && x <= W && y <= H) g += planeIcon(x, y, p.track, 0.65 * rem, p.on_ground ? '#8b98a5' : SERIES[0]);
   }
   svg.innerHTML = g + m.homeDot;
+}
+
+// Ships. Three colour slots go to the kinds that fill a harbour; the rest
+// are grey. Under way is a hull pointing along the heading, stopped a dot.
+const SHIP_KIND = {
+  cargo: { colour: SERIES[0], name: 'Cargo' },
+  tanker: { colour: SERIES[1], name: 'Tankers' },
+  passenger: { colour: SERIES[2], name: 'Passenger and ferries' },
+  service: { colour: '#8b98a5', name: 'Other' },
+  pleasure: { colour: '#8b98a5', name: 'Other' },
+  other: { colour: '#8b98a5', name: 'Other' },
+};
+const underWay = s => (s.sog || 0) >= 0.5;
+
+function shipIcon(x, y, angle, r, colour, still) {
+  if (still) return `<circle cx="${x}" cy="${y}" r="${0.55 * r}" fill="${colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  const a = angle * Math.PI / 180;
+  const p = ([dx, dy]) => `${(x + r * (dx * Math.cos(a) - dy * Math.sin(a))).toFixed(1)},${(y + r * (dx * Math.sin(a) + dy * Math.cos(a))).toFixed(1)}`;
+  return `<polygon points="${[[0, -1.6], [0.6, -0.6], [0.6, 1.2], [-0.6, 1.2], [-0.6, -0.6]].map(p).join(' ')}" fill="${colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+}
+
+// Where the ships are: the box holding the middle 90% of them each way, so a
+// boat far up the coast doesn't pull the harbour into a corner.
+function shipFrame(ships) {
+  const q = (v, f) => v[Math.min(v.length - 1, Math.floor(v.length * f))];
+  const lats = ships.map(s => s.lat).sort((a, b) => a - b), lons = ships.map(s => s.lon).sort((a, b) => a - b);
+  const frame = [q(lats, 0.05), q(lons, 0.05), q(lats, 0.95), q(lons, 0.95)];
+  // At least a few km across, so a single ship doesn't zoom to the dock.
+  const pad = 0.02;
+  return [frame[0] - pad, frame[1] - pad, frame[2] + pad, frame[3] + pad];
+}
+
+function drawShips(box, ships) {
+  const m = placeStreetMap(box, 20, shipFrame(ships));
+  if (!m) return;
+  const { svg, W, H, rem, project } = m;
+  const inside = (x, y) => x >= 0 && y >= 0 && x <= W && y <= H;
+  let g = '';
+  for (const s of ships) if (underWay(s) && s.trail.length > 1)
+    g += `<polyline points="${s.trail.map(([la, lo]) => project(la, lo).join(',')).join(' ')}" fill="none" stroke="${SHIP_KIND[s.kind].colour}" stroke-width="2" opacity="0.5"/>`;
+  for (const s of [...ships].sort((a, b) => underWay(a) - underWay(b))) {
+    const [x, y] = project(s.lat, s.lon);
+    if (inside(x, y)) g += shipIcon(x, y, s.heading ?? s.cog ?? 0, 0.6 * rem, SHIP_KIND[s.kind].colour, !underWay(s));
+  }
+  // Names, ships under way first and big before small; a name that would
+  // land on another is left off.
+  const placed = [], free = b => placed.every(q => b[0] > q[2] || b[2] < q[0] || b[1] > q[3] || b[3] < q[1]);
+  for (const s of [...ships].sort((a, b) => underWay(b) - underWay(a) || (b.length_m || 0) - (a.length_m || 0))) {
+    if (!s.name) continue;
+    const [x, y] = project(s.lat, s.lon);
+    const box = [x + rem, y - 0.6 * rem, x + rem + s.name.length * 0.7 * 1.2 * rem, y + 0.7 * rem];   // names are capitals
+    if (!inside(x, y) || box[2] > W || box[1] < 0 || box[3] > H || !free(box)) continue;
+    placed.push(box);
+    g += `<text x="${box[0]}" y="${y + 0.45 * rem}" fill="var(--text)" font-size="${1.2 * rem}" paint-order="stroke" stroke="#0b0e12" stroke-width="3">${s.name}</text>`;
+  }
+  const [hx, hy] = project(state.station.lat, state.station.lon);
+  svg.innerHTML = g + (inside(hx, hy) ? m.homeDot : '');
 }
 
 // Keep as many rows as fit in a list, then say how many more there are.
@@ -708,6 +776,26 @@ const PAGES = [
     available: () => state && !state.aircraft?.disabled,
     poll_ms: 5000,
   }),
+  Object.assign(function ships() {
+    const a = state.ships, ships = a.ships || [];
+    const moving = ships.filter(underWay).length;
+    const title = `Ships · ${ships.length} in range · ${moving} under way`;
+    const credit = 'Ships: aisstream.io';
+    if (!ships.length) return { title, credit, body: '<div class="empty">Listening for ships nearby…</div>' };
+    const counts = {};
+    for (const s of ships) counts[SHIP_KIND[s.kind].name] = (counts[SHIP_KIND[s.kind].name] || 0) + 1;
+    const legend = ['cargo', 'tanker', 'passenger', 'other'].map(k =>
+      `<span><svg viewBox="0 0 16 16">${shipIcon(8, 8, 0, 4.5, SHIP_KIND[k].colour, false)}</svg> ${SHIP_KIND[k].name} ${counts[SHIP_KIND[k].name] || 0}</span>`).join('') +
+      `<span><svg viewBox="0 0 16 16">${shipIcon(8, 8, 0, 6, '#8b98a5', true)}</svg> stopped</span><span>· last ${a.window_min} min</span>`;
+    const body = `<div class="aprs"><div class="mapbox streetmap ships"><svg></svg>
+        <div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
+      <div class="legend">${legend}</div></div>`;
+    const draw = el => {
+      if (!streetMap.div && !streetMap.failed) startStreetMap(renderFeature);
+      drawShips(el.querySelector('.streetmap'), ships);
+    };
+    return { title, body, credit, draw };
+  }, { available: () => state && !state.ships?.disabled }),
   function alerts() {
     const list = state.spaceweather.alerts || [];
     const body = list.length

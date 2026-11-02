@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShackWall ships page samples</title>
+<!-- Four ways to draw the ships (AIS) page in the big feature panel at the
+     size the real page gives it: 79.8 x 58.4 rem on a 16:9 TV and 117 x 62.7
+     rem on an iPad in landscape, drawn at half scale (1rem = 8px). The maps
+     are the same live OpenFreeMap map as the APRS and aircraft pages, so view
+     this in a real browser with internet. -->
+<link rel="stylesheet" href="../frontend/app.css">
+<script src="ships-data.js"></script>
+<style>
+  html { font-size: 8px; }
+  body { width: auto; height: auto; overflow: auto; padding: 16px; display: block; }
+  .row { display: flex; gap: 20px; margin-bottom: 28px; align-items: flex-start; }
+  .label { font-size: 24px; font-weight: 700; width: 28px; }
+  .box .panel { width: 100%; height: 100%; }
+  .measure { font: 12px Consolas, monospace; color: var(--dim); margin-top: 4px; }
+  .tv { width: 79.8rem; height: 58.4rem; }
+  .ipad { width: 117rem; height: 62.7rem; }
+  .feature-body { display: flex; flex-direction: column; gap: 1rem; }
+  .mapbox { position: relative; min-height: 0; overflow: hidden; border-radius: 0.4rem; background: #111b21; }
+  .mapbox .gl, .mapbox svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .credit-map { position: absolute; right: 0.4rem; bottom: 0.3rem; font-size: 1.2rem; color: var(--dim); }
+  .split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 1.6rem; }
+  .list { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  .more { font-size: 1.3rem; color: var(--dim); padding-top: 0.3rem; }
+  .sh { display: grid; grid-template-columns: 1fr auto; gap: 0 1rem; padding: 0.4rem 0; border-top: 1px solid var(--line); }
+  .sh .n { font-size: 1.6rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sh .s { font-size: 1.5rem; text-align: right; white-space: nowrap; }
+  .sh .sub { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sh .d { font-size: 1.3rem; color: var(--dim); text-align: right; white-space: nowrap; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; font-size: 1.3rem; color: var(--dim); }
+  .legend i { display: inline-block; width: 1rem; height: 1rem; border-radius: 0.2rem; margin-right: 0.4rem; vertical-align: -0.1rem; }
+  .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .tbl th { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; text-align: left; font-weight: 600; padding: 0 1rem 0.4rem 0; }
+  .tbl td { font-size: 1.7rem; padding: 0.5rem 1rem 0.5rem 0; border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tbl td.n { font-weight: 700; }
+  .tbl .dim { color: var(--dim); font-size: 1.4rem; }
+  .counts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; }
+  .counts div { border-top: 3px solid var(--line); padding-top: 0.4rem; }
+  .counts b { font-size: 3rem; display: block; }
+  .counts span { font-size: 1.3rem; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const HOME = SNAPSHOT.home, A = SNAPSHOT.ships, NOW = SNAPSHOT.server_time;
+const ships = A.ships;
+const DIR8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const dir = b => DIR8[Math.round(b / 45) % 8];
+const mi = km => km < 10 ? (km / 1.609344).toFixed(1) : Math.round(km / 1.609344);
+// Three colour slots for the three kinds that fill a harbour; the rest grey.
+const KIND = { cargo: ['#3987e5', 'Cargo'], tanker: ['#d95926', 'Tankers'], passenger: ['#199e70', 'Passenger and ferries'],
+  service: ['#8b98a5', 'Tugs and service'], pleasure: ['#8b98a5', 'Pleasure and sailing'], other: ['#8b98a5', 'Other'] };
+const moving = s => (s.sog || 0) >= 0.5;
+const motion = s => moving(s) ? `${s.sog.toFixed(s.sog < 10 ? 1 : 0)} kn ${dir(s.cog ?? s.heading ?? 0)}` : (s.status || 'stopped');
+const name = s => s.name || `MMSI ${s.mmsi}`;
+const about = s => [KIND[s.kind][1].split(' ')[0], s.length_m && `${s.length_m} m`, s.destination && `to ${s.destination}`].filter(Boolean).join(' · ');
+
+function hull(x, y, angle, r, colour, still) {
+  if (still) return `<circle cx="${x}" cy="${y}" r="${0.55 * r}" fill="${colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  const a = angle * Math.PI / 180, p = (dx, dy) => `${(x + dx * Math.cos(a) - dy * Math.sin(a)).toFixed(1)},${(y + dx * Math.sin(a) + dy * Math.cos(a)).toFixed(1)}`;
+  return `<polygon points="${[[0, -1.6], [0.6, -0.6], [0.6, 1.2], [-0.6, 1.2], [-0.6, -0.6]].map(([dx, dy]) => p(dx * r, dy * r)).join(' ')}" fill="${colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+}
+
+function overlay(svg, project, rem, labels) {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const [hx, hy] = project(HOME[0], HOME[1]);
+  const kmPx = (project(HOME[0], HOME[1] + 20 / (111.32 * Math.cos(HOME[0] * Math.PI / 180)))[0] - hx) / 20;
+  let g = '';
+  for (const m of [5, 10, 20]) {
+    const r = m * 1.609344 * kmPx;
+    g += `<circle cx="${hx}" cy="${hy}" r="${r}" fill="none" stroke="#3a4a5c" stroke-dasharray="4 5"/>` +
+         `<text x="${hx + 0.4 * rem}" y="${hy - r - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${m} mi</text>`;
+  }
+  for (const s of ships) if (moving(s) && s.trail.length > 1)
+    g += `<polyline points="${s.trail.map(([la, lo]) => project(la, lo).join(',')).join(' ')}" fill="none" stroke="${KIND[s.kind][0]}" stroke-width="2" opacity="0.5"/>`;
+  for (const s of [...ships].sort((a, b) => moving(a) - moving(b))) {
+    const [x, y] = project(s.lat, s.lon);
+    if (x < 0 || y < 0 || x > W || y > H) continue;
+    g += hull(x, y, s.heading ?? s.cog ?? 0, 0.6 * rem, KIND[s.kind][0], !moving(s));
+  }
+  const placed = [], free = b => placed.every(q => b[0] > q[2] || b[2] < q[0] || b[1] > q[3] || b[3] < q[1]);
+  if (labels) for (const s of [...ships].sort((a, b) => moving(b) - moving(a) || (b.length_m || 0) - (a.length_m || 0))) {
+    if (!s.name) continue;
+    const [x, y] = project(s.lat, s.lon), w = s.name.length * 0.58 * 1.2 * rem;
+    const box = [x + 1 * rem, y - 0.6 * rem, x + 1 * rem + w, y + 0.7 * rem];
+    if (box[2] > W || box[1] < 0 || box[3] > H || !free(box)) continue;
+    placed.push(box);
+    g += `<text x="${box[0]}" y="${y + 0.45 * rem}" fill="var(--text)" font-size="${1.2 * rem}" paint-order="stroke" stroke="#0b0e12" stroke-width="3">${s.name}</text>`;
+  }
+  svg.innerHTML = g + `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="#0b0e12" stroke-width="2"/>`;
+}
+
+const LIVE_HIDE = ['highway_path', 'highway_minor', 'highway_major_casing', 'highway_major_inner', 'highway_major_subtle',
+  'highway_name_other', 'highway_motorway_casing', 'highway_motorway_inner', 'highway_motorway_subtle', 'highway_name_motorway',
+  'railway', 'railway_dashline', 'railway_minor', 'railway_minor_dashline', 'railway_transit', 'railway_transit_dashline',
+  'building', 'road_oneway', 'road_oneway_opposite', 'road_pier', 'road_area_pier', 'boundary_state', 'boundary_country_z0-4', 'boundary_country_z5-'];
+const LIVE_PAINT = { background: ['background-color', '#111b21'], water: ['fill-color', '#060b0e'], waterway: ['line-color', '#060b0e'],
+  landuse_residential: ['fill-color', '#111b21'], landuse_park: ['fill-color', '#162229'], landcover_wood: ['fill-color', '#162229'] };
+// Ships cluster in the harbour: fit nine in ten.
+const ds = ships.map(s => s.km).sort((a, b) => a - b);
+const RANGE_KM = Math.max(10, Math.ceil(ds[Math.floor(ds.length * 0.9)] / 5) * 5);
+function liveMap(box, labels) {
+  return new Promise(resolve => {
+    const gl = box.querySelector('.gl'), svg = box.querySelector('svg');
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const half = Math.min(gl.clientWidth, gl.clientHeight) / 2;
+    const zoom = Math.log2(40075016.686 * Math.cos(HOME[0] * Math.PI / 180) / (512 * RANGE_KM * 1000 / half));
+    const map = new maplibregl.Map({ container: gl, style: 'https://tiles.openfreemap.org/styles/dark', center: [HOME[1], HOME[0]],
+      zoom, interactive: false, attributionControl: false, fadeDuration: 0 });
+    map.once('load', () => {
+      for (const layer of map.getStyle().layers) {
+        if (LIVE_HIDE.includes(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none');
+        else if (layer.id.startsWith('place_')) map.setPaintProperty(layer.id, 'text-opacity', 0.45);
+        else if (LIVE_PAINT[layer.id]) map.setPaintProperty(layer.id, ...LIVE_PAINT[layer.id]);
+      }
+      overlay(svg, (lat, lon) => { const q = map.project([lon, lat]); return [q.x, q.y]; }, rem, labels);
+      map.once('idle', resolve);
+    });
+  });
+}
+
+const MAPCREDIT = '<div class="credit-map">© OpenMapTiles © OpenStreetMap contributors</div>';
+const mapBox = (labels, style = '') => `<div class="mapbox" ${labels ? 'data-labels="1"' : ''} style="${style}"><div class="gl"></div><svg></svg>${MAPCREDIT}</div>`;
+const legend = () => `<div class="legend">` + ['cargo', 'tanker', 'passenger', 'service'].map(k =>
+  `<span><i style="background:${KIND[k][0]}"></i>${k === 'service' ? 'Other' : KIND[k][1]}</span>`).join('') + `<span>▲ under way · ● stopped</span></div>`;
+const row = s => `<div class="sh"><span class="n">${name(s)}</span><span class="s">${motion(s)}</span>
+  <span class="sub">${about(s)}</span><span class="d">${mi(s.km)} mi ${dir(s.bearing)}</span></div>`;
+const byInterest = [...ships].sort((a, b) => moving(b) - moving(a) || a.km - b.km);
+
+const variants = {
+  A: () => `<div class="split">${mapBox(false)}<div class="list" data-total="${ships.length}">${byInterest.slice(0, 20).map(row).join('')}</div></div>` + legend(),
+  B: () => `<table class="tbl"><colgroup><col style="width:26%"><col style="width:13%"><col style="width:17%"><col style="width:26%"><col></colgroup>
+    <tr><th>Ship</th><th>Kind</th><th>Doing</th><th>Going to</th><th>Where</th></tr>` +
+    byInterest.slice(0, 13).map(s => `<tr><td class="n">${name(s)}</td><td>${KIND[s.kind][1].split(' ')[0]}</td><td>${motion(s)}</td>
+      <td>${s.destination || '<span class="dim">—</span>'}</td><td>${mi(s.km)} mi ${dir(s.bearing)}</td></tr>`).join('') + `</table>`,
+  C: () => mapBox(true, 'flex:1') + legend(),
+  D: () => `<div class="counts">` + Object.entries(KIND).map(([k, [c, n]]) =>
+      `<div style="border-color:${c}"><b>${ships.filter(s => s.kind === k).length}</b><span>${n}</span></div>`).join('') + `</div>` +
+    `<div class="split">${mapBox(false)}<div class="list" data-total="${ships.filter(moving).length}">${ships.filter(moving).slice(0, 20).map(row).join('')}</div></div>`,
+};
+
+(async () => {
+  const lib = document.createElement('script');
+  lib.src = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+  document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css' }), lib);
+  await new Promise(r => lib.onload = r);
+  const out = document.getElementById('out');
+  for (const [k, body] of Object.entries(variants)) {
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = `<div class="label">${k}</div>` + ['tv', 'ipad'].map(size =>
+      `<div><div class="box ${size}" id="${k}-${size}"><section class="panel feature">
+         <h2>Ships · ${ships.length} within ${mi(RANGE_KM)} mi · ${ships.filter(moving).length} under way</h2><div class="feature-body">${body()}</div></section></div>
+       <div class="measure" id="m-${k}-${size}"></div></div>`).join('');
+    out.appendChild(el);
+  }
+  await Promise.all([...document.querySelectorAll('.mapbox')].map(b => liveMap(b, !!b.dataset.labels)));
+  for (const col of document.querySelectorAll('.list')) {
+    const items = [...col.children], bottom = () => col.getBoundingClientRect().bottom;
+    while (items.length && items[items.length - 1].getBoundingClientRect().bottom > bottom()) items.pop().remove();
+    if (+col.dataset.total > items.length) {
+      const more = Object.assign(document.createElement('div'), { className: 'more', textContent: `+${col.dataset.total} more` });
+      col.appendChild(more);
+      while (items.length && more.getBoundingClientRect().bottom > bottom()) items.pop().remove();
+      more.textContent = `+${col.dataset.total - items.length} more`;
+    }
+  }
+  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  for (const box of document.querySelectorAll('.box')) {
+    const body = box.querySelector('.feature-body'), br = body.getBoundingClientRect();
+    let min = Infinity, outside = 0;
+    for (const el of body.querySelectorAll('*')) {
+      if (el.closest('.gl')) continue;
+      if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+        min = Math.min(min, parseFloat(el.getAttribute('font-size') || getComputedStyle(el).fontSize));
+      const r = el.getBoundingClientRect();
+      if (r.height && !el.closest('svg') && (r.bottom > br.bottom + 1 || r.right > br.right + 1)) outside++;
+    }
+    document.getElementById('m-' + box.id).textContent =
+      `${box.id}: min ${(min / remPx).toFixed(2)}rem, ${outside ? outside + ' outside' : 'fits'}, ${box.querySelectorAll('.sh, .tbl tr').length} rows, ${box.querySelectorAll('.mapbox svg text').length} map labels`;
+  }
+  document.body.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>

@@ -8,14 +8,14 @@ to, or a Raspberry Pi plugged into a monitor.
 > **Status: early.** The page layout, clocks, live space weather from NOAA, HF
 > band conditions from HAMQSL, US weather with antenna warnings from the
 > National Weather Service, amateur satellite passes, POTA spots, PSKReporter
-> band activity, APRS and aircraft from your own ADS-B receiver work. Ships
-> are still to come.
+> band activity, APRS, aircraft from your own ADS-B receiver and ships from
+> aisstream.io all work.
 
 ## What it looks like
 
 On a 1080p TV: the column on the left stays put, and the big panel takes
 turns between the forecast, satellite passes, POTA spots, band activity, APRS,
-aircraft and space weather alerts.
+aircraft, ships and space weather alerts.
 
 ![The forecast page: 48 hours of temperature, wind against the antenna limit, and rain and thunder chances](img/forecast.png)
 
@@ -29,6 +29,8 @@ aircraft and space weather alerts.
 ![APRS stations on a live map round the station, beside the newest ones heard](img/aprs.jpg)
 
 ![Aircraft from the station's own ADS-B receiver on the same map, nearest first](img/aircraft.jpg)
+
+![Ships in New York Harbor from aisstream.io, named on a map framed on where they are](img/ships.jpg)
 
 ## Install
 
@@ -139,6 +141,14 @@ The large panel takes turns between these pages:
   the route, airline and aircraft type. Set `AIRCRAFT_URL` to FlightBoard's
   `/api/aircraft` or to your receiver's `aircraft.json`; without it the page
   is left out. While it is showing, the screen refreshes every 5 seconds.
+- **Ships:** every vessel heard within `AIS_RANGE_KM` (40 km by default) in
+  the last half hour, on the same map, framed on where the ships are rather
+  than on your station. Ships under way are hulls pointing along their
+  heading, with a trail; stopped ones are dots. Cargo is blue, tankers orange,
+  passenger boats and ferries green, everything else grey: only about a third
+  of vessels say what kind they are. Names are shown wherever they fit. Needs
+  a free key from [aisstream.io](https://aisstream.io/) in `AISSTREAM_API_KEY`;
+  without one the page is left out.
 - **Space weather alerts:** NOAA's alerts, warnings and watches from the last
   24 hours.
 
@@ -193,7 +203,7 @@ in every request and caches politely.
 | APRS stations | [APRS-IS](https://www.aprs-is.net/) | One receive-only connection, filtered on the server to your range; not aprs.fi, whose terms only allow fetching while someone is looking |
 | APRS map | [OpenFreeMap](https://openfreemap.org/), OpenStreetMap data | No key or limits; © OpenMapTiles © OpenStreetMap contributors, shown on the map |
 | Aircraft | Your own ADS-B receiver: [FlightBoard](https://github.com/gonzalu/FlightBoard)'s API or any dump1090/readsb `aircraft.json` | Your data, on your network; read every 5 seconds |
-| Ships | [aisstream.io](https://aisstream.io/) | Free key; server-side only |
+| Ships | [aisstream.io](https://aisstream.io/) | Free key; one server-side WebSocket (never from a browser), compressed, filtered to your area; an account allows three at once |
 | World map | [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, as [world-atlas](https://github.com/topojson/world-atlas) TopoJSON | Public domain; world-atlas is ISC |
 
 SOTA spots aren't included. The SOTA API's terms don't allow software written

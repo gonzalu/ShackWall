@@ -8,3 +8,5 @@ httpx>=0.27
 skyfield>=1.49
 # PSKReporter's live MQTT feed.
 paho-mqtt>=2.0
+# aisstream.io's WebSocket feed of ships.
+websockets>=13

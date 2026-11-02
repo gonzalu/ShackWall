@@ -86,10 +86,17 @@ async def _observation(stations_url):
     for s in stations[:3]:
         sid = s["properties"]["stationIdentifier"]
         o = (await _json(f"{API}/stations/{sid}/observations/latest"))["properties"]
-        taken = datetime.fromisoformat(o["timestamp"])
+        # NWS sometimes publishes a report with its readings blanked (they
+        # failed its quality checks). Then the newest of the station's last
+        # few reports that has a temperature stands in.
         if _value(o, "temperature") is None:
-            continue
+            recent = (await _json(f"{API}/stations/{sid}/observations?limit=4"))["features"]
+            o = next((r["properties"] for r in recent
+                      if _value(r["properties"], "temperature") is not None), o)
+        taken = datetime.fromisoformat(o["timestamp"])
         if (datetime.now(timezone.utc) - taken).total_seconds() > OBS_MAX_AGE_S:
+            continue
+        if _value(o, "temperature") is None:
             continue
         return {
             "station": sid,

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Favicon samples</title>
+<!-- Four favicon candidates each for ShackWall and for Ollamator's landing
+     page, shown at the sizes browsers use (16 and 32 px in a tab, 180 px on
+     an iPad home screen) on a dark and a light tab strip. Each is measured:
+     how much of the 16 px square is drawn, and the contrast between the
+     icon's tile and each tab strip. -->
+<style>
+  body { background: #0b0e12; color: #e6edf3; font: 15px "Segoe UI", system-ui, sans-serif; padding: 18px 24px; margin: 0; }
+  h2 { font-size: 18px; margin: 18px 0 10px; color: #8b98a5; text-transform: uppercase; letter-spacing: .1em; }
+  .set { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .card { background: #141a21; border: 1px solid #243040; border-radius: 10px; padding: 14px; }
+  .card b { font-size: 22px; }
+  .card .what { color: #8b98a5; font-size: 13px; margin: 2px 0 10px; min-height: 34px; }
+  .tabs { display: flex; flex-direction: column; gap: 6px; }
+  .tab { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px 8px 0 0; font-size: 13px; width: 190px; }
+  .tab.dark { background: #35363a; color: #e8eaed; }
+  .tab.light { background: #f1f3f4; color: #202124; }
+  .big { display: flex; align-items: flex-end; gap: 14px; margin-top: 12px; }
+  .big img.home { width: 90px; height: 90px; border-radius: 20px; }
+  .m { font: 12px Consolas, monospace; color: #8b98a5; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h2>ShackWall</h2>
+<div class="set" id="shackwall"></div>
+<h2>Ollamator landing page</h2>
+<div class="set" id="ollamator"></div>
+<script>
+const tile = (bg, inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${bg}"/>${inner}</svg>`;
+const SW = '#0b0e12', SWA = '#58a6ff', OL = '#0d1722', OLA = '#82c9ff';
+const ICONS = {
+  shackwall: {
+    A: ['Antenna mast', 'A lattice tower sending out waves', tile(SW,
+      `<path d="M32 14 22 54M32 14l10 40M25 42h14M27 32h10" stroke="${SWA}" stroke-width="4" stroke-linecap="round" fill="none"/>
+       <path d="M18 14a16 16 0 0 0 0 16M46 14a16 16 0 0 1 0 16M12 9a24 24 0 0 0 0 26M52 9a24 24 0 0 1 0 26" stroke="#e6edf3" stroke-width="3.5" stroke-linecap="round" fill="none"/>`)],
+    B: ['SW monogram', 'The initials, bold, on the accent colour', tile(SWA,
+      `<text x="32" y="43" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="30" fill="${SW}">SW</text>`)],
+    C: ['Gray line globe', 'Earth half in night, as on the band map', tile(SW,
+      `<circle cx="32" cy="32" r="21" fill="#2a3a4c"/><path d="M32 11a21 21 0 0 1 0 42a12 21 0 0 0 0-42z" fill="${SWA}"/>
+       <circle cx="32" cy="32" r="21" fill="none" stroke="#e6edf3" stroke-width="3"/>`)],
+    D: ['Signal on a wall', 'Waves over the grid of panels the display is made of', tile(SW,
+      `<rect x="11" y="34" width="12" height="18" rx="2" fill="#2a3a4c"/><rect x="26" y="34" width="27" height="18" rx="2" fill="#2a3a4c"/>
+       <circle cx="32" cy="24" r="3.5" fill="${SWA}"/><path d="M23 24a9 9 0 0 1 18 0M16 24a16 16 0 0 1 32 0" stroke="${SWA}" stroke-width="4" stroke-linecap="round" fill="none"/>`)],
+  },
+  ollamator: {
+    A: ['Server rack', 'Three units with green, blue and amber lights', tile(OL,
+      `<rect x="13" y="12" width="38" height="11" rx="3" fill="#2b4960"/><rect x="13" y="27" width="38" height="11" rx="3" fill="#2b4960"/><rect x="13" y="42" width="38" height="11" rx="3" fill="#2b4960"/>
+       <circle cx="42" cy="17.5" r="3" fill="#3fb950"/><circle cx="42" cy="32.5" r="3" fill="${OLA}"/><circle cx="42" cy="47.5" r="3" fill="#d29922"/>
+       <path d="M19 17.5h12M19 32.5h12M19 47.5h12" stroke="#a8bac9" stroke-width="3" stroke-linecap="round"/>`)],
+    B: ['O with orbits', 'A hub with the services circling it', tile(OL,
+      `<circle cx="32" cy="32" r="13" fill="none" stroke="${OLA}" stroke-width="6"/>
+       <circle cx="52" cy="20" r="4.5" fill="#edf4fb"/><circle cx="12" cy="44" r="4.5" fill="#edf4fb"/><circle cx="44" cy="52" r="3.5" fill="#d29922"/>`)],
+    C: ['Plane, mast and chip', 'One icon each for aviation, radio and AI', tile(OL,
+      `<path d="M27 21 16 23 11 33l-3-.5 3.5-10L4 19l1.5-2.5L14 19l5-6.5 3 1-3 7 7-1z" fill="${OLA}"/>
+       <path d="M47 8l-5 22M47 8l5 22M44 21h6" stroke="#edf4fb" stroke-width="3" stroke-linecap="round" fill="none"/>
+       <rect x="20" y="37" width="18" height="18" rx="3" fill="none" stroke="#3fb950" stroke-width="3.5"/><path d="M24 37v-4M34 37v-4M24 59v-4M34 59v-4" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/>`)],
+    D: ['House with antenna', 'The home network, with a mast on the roof', tile(OL,
+      `<path d="M12 33 32 15l20 18v20H12z" fill="#2b4960"/><path d="M8 35 32 13l24 22" stroke="${OLA}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+       <path d="M44 6v14M40 10l4-4 4 4" stroke="#edf4fb" stroke-width="3" stroke-linecap="round" fill="none"/><rect x="27" y="38" width="10" height="15" rx="2" fill="${OLA}"/>`)],
+  },
+};
+
+// Luminance contrast between two colours, as WCAG defines it.
+function lum(hex) {
+  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+async function measure(svg, bg) {
+  // Draw at 16 px and count pixels that differ clearly from the tile colour:
+  // how much of the icon survives at tab size.
+  const img = new Image(); img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  await img.decode();
+  const c = Object.assign(document.createElement('canvas'), { width: 16, height: 16 }), g = c.getContext('2d');
+  g.drawImage(img, 0, 0, 16, 16);
+  const d = g.getImageData(0, 0, 16, 16).data, t = [1, 3, 5].map(i => parseInt(bg.slice(i, i + 2), 16));
+  let ink = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128 && Math.abs(d[i] - t[0]) + Math.abs(d[i + 1] - t[1]) + Math.abs(d[i + 2] - t[2]) > 60) ink++;
+  return ink;
+}
+
+(async () => {
+  for (const [set, icons] of Object.entries(ICONS)) {
+    const host = document.getElementById(set);
+    for (const [k, [name, what, svg]] of Object.entries(icons)) {
+      const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
+      const bg = svg.match(/fill="(#[0-9a-f]{6})"/i)[1];
+      const ink = await measure(svg, bg);
+      host.insertAdjacentHTML('beforeend', `<div class="card"><b>${k}</b> ${name}<div class="what">${what}</div>
+        <div class="tabs">${['dark', 'light'].map(m => `<div class="tab ${m}"><img src="${url}" width="16" height="16"> ${set === 'shackwall' ? 'ShackWall' : 'Ollamator'}</div>`).join('')}</div>
+        <div class="big"><img src="${url}" width="32" height="32"><img src="${url}" width="64" height="64"><img class="home" src="${url}"></div>
+        <div class="m">16px: ${ink} of 256 px drawn (${Math.round(ink / 2.56)}%)<br>tile vs dark tab ${contrast(bg, '#35363a').toFixed(1)}:1, light tab ${contrast(bg, '#f1f3f4').toFixed(1)}:1</div></div>`);
+    }
+  }
+  document.body.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>

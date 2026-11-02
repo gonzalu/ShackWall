@@ -130,6 +130,8 @@ AIRCRAFT_URL = _get("AIRCRAFT_URL")
 CONTACT_EMAIL = _get("CONTACT_EMAIL")
 
 AISSTREAM_API_KEY = _get("AISSTREAM_API_KEY")
+# How far round the station to ask aisstream.io for ships.
+AIS_RANGE_KM = _float("AIS_RANGE_KM", 40)
 
 
 def user_agent():
