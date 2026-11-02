@@ -1,0 +1,28 @@
+[Unit]
+Description=ShackWall backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ---- EDIT THESE ----------------------------------------------------------
+# The account that owns the checkout, and where you cloned it. The README's
+# install step fills YOUR-USER in for you with sed; edit here instead when the
+# service should run as a different account than the one installing it.
+User=YOUR-USER
+WorkingDirectory=/home/YOUR-USER/ShackWall
+
+# Your station and keys live in shackwall.env, not in this file, so that a
+# manual `uvicorn` run and this service read the same settings. The leading
+# dash means the service still starts if the file is missing.
+EnvironmentFile=-/home/YOUR-USER/ShackWall/shackwall.env
+
+ExecStart=/home/YOUR-USER/ShackWall/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8092
+# --------------------------------------------------------------------------
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

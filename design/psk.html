@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShackWall PSKReporter page samples</title>
+<!-- Four ways to draw the PSKReporter page in the big feature panel at the
+     size the real page gives it: 79.8 x 58.4 rem on a 16:9 TV and 117 x 62.7
+     rem on an iPad in landscape, drawn at half scale (1rem = 8px). Night and
+     the gray line are worked out from the sun's position at the snapshot's
+     time. -->
+<link rel="stylesheet" href="../frontend/app.css">
+<script src="psk-data.js"></script>
+<style>
+  html { font-size: 8px; }
+  body { width: auto; height: auto; overflow: auto; padding: 16px; display: block; }
+  .row { display: flex; gap: 20px; margin-bottom: 28px; align-items: flex-start; }
+  .label { font-size: 24px; font-weight: 700; width: 28px; }
+  .box .panel { width: 100%; height: 100%; }
+  .measure { font: 12px Consolas, monospace; color: var(--dim); margin-top: 4px; }
+  .tv { width: 79.8rem; height: 58.4rem; }
+  .ipad { width: 117rem; height: 62.7rem; }
+  .feature-body { display: flex; flex-direction: column; gap: 1rem; }
+  .dim { color: var(--dim); }
+  .mapbox { position: relative; flex: 1; min-height: 0; }
+  .mapbox canvas, .mapbox svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .legend { display: flex; gap: 2rem; font-size: 1.4rem; color: var(--dim); }
+  .legend i { display: inline-block; width: 1rem; height: 1rem; border-radius: 50%; margin-right: 0.5rem; vertical-align: -0.1rem; }
+
+  /* A, D: a row of band summaries */
+  .bandrow { display: grid; gap: 0.8rem; }
+  .bandrow > div { border-top: 2px solid var(--line); padding-top: 0.4rem; min-width: 0; }
+  .bandrow b { font-size: 1.8rem; }
+  .bandrow .n { font-size: 1.4rem; }
+  .bandrow .far { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* B: map beside a band table */
+  .split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr); gap: 2rem; }
+  .btbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .btbl th { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; text-align: left; padding: 0 0.8rem 0.4rem 0; }
+  .btbl td { font-size: 1.6rem; padding: 0.5rem 0.8rem 0.5rem 0; border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btbl td.b { font-weight: 700; font-size: 1.8rem; }
+  .btbl .sub { display: block; font-size: 1.3rem; color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+
+  /* C: a small map per band */
+  .multi { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 1rem; }
+  .cell { display: flex; flex-direction: column; min-height: 0; }
+  .cell .h { font-size: 1.4rem; display: flex; justify-content: space-between; color: var(--dim); }
+  .cell .h b { color: var(--text); font-size: 1.6rem; }
+
+  /* D: bars per band over a small map */
+  .bars { display: flex; flex-direction: column; gap: 0.5rem; }
+  .bar { display: grid; grid-template-columns: 5rem 1fr 1fr 22rem; gap: 1rem; align-items: center; font-size: 1.5rem; }
+  .bar b { font-size: 1.8rem; }
+  .bar .track { height: 1.6rem; background: #0f141a; border-radius: 0.3rem; position: relative; }
+  .bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 0.3rem; }
+  .bar .track span { position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem; color: var(--text); }
+  .bar .far { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const NOW = SNAPSHOT.server_time * 1000, HOME = SNAPSHOT.home, P = SNAPSHOT.psk;
+const SERIES = ['#3987e5', '#d95926'];      // out: FN30 heard there; in: heard in FN30
+const NAMES = { out: `${P.square} heard there`, in: `Heard in ${P.square}` };
+const mi = km => Math.round(km / 1.609344).toLocaleString();
+const R = Math.PI / 180;
+
+// The sun's elevation, from the same NOAA equations the backend's sun.py uses.
+function sunElevation(lat, lon, ms) {
+  const days = ms / 86400000 - 10957.5;
+  const g = ((357.529 + 0.98560028 * days) % 360) * R, q = (280.459 + 0.98564736 * days) % 360;
+  const L = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * R, e = (23.439 - 0.00000036 * days) * R;
+  const decl = Math.asin(Math.sin(e) * Math.sin(L));
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)) / R;
+  const ha = ((280.46061837 + 360.98564736629 * days) % 360 + lon - ra) * R;
+  return Math.asin(Math.sin(lat * R) * Math.sin(decl) + Math.cos(lat * R) * Math.cos(decl) * Math.cos(ha)) / R;
+}
+// Night shading: deepest below -12°, fading through twilight; the gray line
+// is the band either side of 0°.
+function shadeNight(canvas, inverse) {
+  const W = canvas.width = canvas.clientWidth, H = canvas.height = canvas.clientHeight;
+  const ctx = canvas.getContext('2d'), img = ctx.createImageData(W, H), step = 2;
+  for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) {
+    const ll = inverse(x + 0.5, y + 0.5);
+    if (!ll) continue;
+    const el = sunElevation(ll[0], ll[1], NOW);
+    const a = el > 0 ? 0 : Math.min(1, -el / 12) * 0.55;
+    for (let dy = 0; dy < step && y + dy < H; dy++) for (let dx = 0; dx < step && x + dx < W; dx++) {
+      const i = ((y + dy) * W + x + dx) * 4;
+      img.data[i] = 0; img.data[i + 1] = 0; img.data[i + 2] = 8; img.data[i + 3] = a * 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+let LAND = null;
+async function loadLand() {
+  const topo = await (await fetch('../frontend/land-110m.json')).json();
+  const { scale: [kx, ky], translate: [dx, dy] } = topo.transform;
+  const arcs = topo.arcs.map(arc => { let x = 0, y = 0; return arc.map(([a, b]) => [(x += a) * kx + dx, (y += b) * ky + dy]); });
+  const ring = idx => idx.flatMap((i, n) => { const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i]; return n ? a.slice(1) : a; });
+  LAND = topo.objects.land.geometries.flatMap(g => g.type === 'Polygon' ? g.arcs.map(ring) : g.arcs.flatMap(p => p.map(ring)));
+}
+
+// Equirectangular, 60°S to 80°N, fitted to the box.
+function equirect(W, H) {
+  const top = 80, bottom = -60, sx = W / 360, sy = H / (top - bottom), s = Math.min(sx, sy);
+  const ox = (W - 360 * s) / 2, oy = (H - (top - bottom) * s) / 2;
+  return {
+    fwd: (lat, lon) => [ox + (lon + 180) * s, oy + (top - lat) * s],
+    inv: (x, y) => { const lon = (x - ox) / s - 180, lat = top - (y - oy) / s;
+      return lon < -180 || lon > 180 || lat < bottom || lat > top ? null : [lat, lon]; },
+    s, frame: [ox, oy, 360 * s, (top - bottom) * s],
+  };
+}
+// Azimuthal equidistant round the station, out to the far side of the world.
+function azimuthal(W, H, maxKm = 20000) {
+  const S = Math.min(W, H), cx = W / 2, cy = H / 2, k = (S / 2 - 4) / maxKm, p1 = HOME[0] * R;
+  return {
+    fwd: (lat, lon) => {
+      const p2 = lat * R, dl = (lon - HOME[1]) * R;
+      const c = Math.acos(Math.max(-1, Math.min(1, Math.sin(p1) * Math.sin(p2) + Math.cos(p1) * Math.cos(p2) * Math.cos(dl))));
+      const b = Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl));
+      const km = c * 6371; return [cx + km * Math.sin(b) * k, cy - km * Math.cos(b) * k, km];
+    },
+    inv: (x, y) => {
+      const dx = (x - cx) / k, dy = (cy - y) / k, km = Math.hypot(dx, dy);
+      if (km > maxKm) return null;
+      const c = km / 6371, b = Math.atan2(dx, dy);
+      const lat = Math.asin(Math.sin(p1) * Math.cos(c) + Math.cos(p1) * Math.sin(c) * Math.cos(b));
+      const lon = HOME[1] * R + Math.atan2(Math.sin(b) * Math.sin(c) * Math.cos(p1), Math.cos(c) - Math.sin(p1) * Math.sin(lat));
+      return [lat / R, ((lon / R + 540) % 360) - 180];
+    },
+    circle: [cx, cy, maxKm * k],
+  };
+}
+
+function drawMap(box, kind, points) {
+  const canvas = box.querySelector('canvas'), svg = box.querySelector('svg');
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const proj = kind === 'az' ? azimuthal(W, H) : equirect(W, H);
+  shadeNight(canvas, proj.inv);
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  let g = '', d = '';
+  const id = 'clip' + Math.random().toString(36).slice(2);
+  const edge = kind === 'az'
+    ? `<circle cx="${proj.circle[0]}" cy="${proj.circle[1]}" r="${proj.circle[2]}"/>`
+    : (([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`)(proj.frame);
+  // Coastline past the map's edge (the poles, the far side) is clipped off.
+  g += `<clipPath id="${id}">${edge}</clipPath>` + edge.replace('/>', ' fill="none" stroke="var(--line)"/>');
+  for (const ring of LAND) {
+    let prev = null;
+    for (const [lon, lat] of ring) {
+      const [x, y] = proj.fwd(lat, lon);
+      // A jump across the map is the antimeridian (or the far side of the
+      // azimuthal map), not coastline: lift the pen.
+      const jump = prev && Math.hypot(x - prev[0], y - prev[1]) > W / 6;
+      d += `${!prev || jump ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      prev = [x, y];
+    }
+  }
+  g += `<path d="${d}" fill="none" stroke="#3a4a5c" stroke-width="1" clip-path="url(#${id})"/>`;
+  for (const p of points) {
+    const [x, y] = proj.fwd(p.lat, p.lon);
+    g += `<circle cx="${x}" cy="${y}" r="${Math.max(2.5, 0.45 * rem)}" fill="${SERIES[p.dir === 'out' ? 0 : 1]}" opacity="0.85"/>`;
+  }
+  const [hx, hy] = proj.fwd(HOME[0], HOME[1]);
+  g += `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="var(--panel)" stroke-width="2"/>`;
+  svg.innerHTML = g;
+}
+
+const legend = `<div class="legend"><span><i style="background:${SERIES[0]}"></i>${NAMES.out}</span>
+  <span><i style="background:${SERIES[1]}"></i>${NAMES.in}</span><span>Shaded: night · last ${P.window_min} min</span></div>`;
+// The live feed names the far station and its square, not its country.
+const farText = f => f ? `${f.call} ${mi(f.km)} mi` : '—';
+const mapBox = kind => `<div class="mapbox" data-kind="${kind}"><canvas></canvas><svg></svg></div>`;
+const maxCount = Math.max(...P.bands.map(b => Math.max(b.out, b.in)));
+
+const variants = {
+  A: () => mapBox('eq') + legend + `<div class="bandrow" style="grid-template-columns:repeat(${P.bands.length},1fr)">` +
+    P.bands.map(b => `<div><b>${b.band}</b><div class="n">${b.out} / ${b.in}</div><div class="far">${farText(b.far_out)}</div></div>`).join('') + `</div>`,
+  B: () => `<div class="split">${mapBox('az')}<div><table class="btbl"><colgroup><col style="width:16%"><col style="width:42%"><col></colgroup>
+    <tr><th>Band</th><th>${NAMES.out}</th><th>${NAMES.in}</th></tr>` +
+    P.bands.map(b => `<tr><td class="b">${b.band}</td><td>${b.out}<span class="sub">${farText(b.far_out)}</span></td>
+      <td>${b.in}<span class="sub">${farText(b.far_in)}</span></td></tr>`).join('') + `</table></div></div>` + legend,
+  C: () => `<div class="multi">` + P.bands.map(b => `<div class="cell"><div class="h"><b>${b.band}</b><span>${b.out} / ${b.in}</span></div>
+    <div class="mapbox" data-kind="eq" data-band="${b.band}"><canvas></canvas><svg></svg></div></div>`).join('') + `</div>` + legend,
+  D: () => `<div class="bars">` + P.bands.map(b => `<div class="bar"><b>${b.band}</b>
+      <div class="track"><div class="fill" style="width:${100 * b.out / maxCount}%;background:${SERIES[0]}"></div><span>${b.out}</span></div>
+      <div class="track"><div class="fill" style="width:${100 * b.in / maxCount}%;background:${SERIES[1]}"></div><span>${b.in}</span></div>
+      <div class="far">farthest ${farText(b.far_out)}</div></div>`).join('') + `</div>` + mapBox('eq') + legend,
+};
+const titles = { A: 'Band activity', B: 'Band activity', C: 'Band activity by band', D: 'Band activity' };
+
+(async () => {
+  await loadLand();
+  const out = document.getElementById('out');
+  for (const [k, body] of Object.entries(variants)) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<div class="label">${k}</div>` + ['tv', 'ipad'].map(size =>
+      `<div><div class="box ${size}" id="${k}-${size}"><section class="panel feature">
+         <h2>${titles[k]} · ${P.square} on PSKReporter</h2><div class="feature-body">${body()}</div></section></div>
+       <div class="measure" id="m-${k}-${size}"></div></div>`).join('');
+    out.appendChild(row);
+  }
+  for (const box of document.querySelectorAll('.mapbox'))
+    drawMap(box, box.dataset.kind, box.dataset.band ? P.points.filter(p => p.band === box.dataset.band) : P.points);
+
+  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  for (const box of document.querySelectorAll('.box')) {
+    const body = box.querySelector('.feature-body'), br = body.getBoundingClientRect();
+    let min = Infinity, outside = 0, bottom = 0, cut = 0;
+    for (const el of body.querySelectorAll('*')) {
+      if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) {
+        min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+        if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow === 'ellipsis') cut++;
+      }
+      const r = el.getBoundingClientRect();
+      if (!r.height || el.closest('svg')) continue;
+      if (r.bottom > br.bottom + 1 || r.right > br.right + 1) outside++; else bottom = Math.max(bottom, r.bottom);
+    }
+    const maps = [...box.querySelectorAll('.mapbox')].map(m => `${Math.round(m.clientWidth / remPx)}x${Math.round(m.clientHeight / remPx)}`).join(',');
+    document.getElementById('m-' + box.id).textContent =
+      `${box.id}: min ${(min / remPx).toFixed(2)}rem, ${outside ? outside + ' outside' : 'fits'}${cut ? `, ${cut} shortened` : ''}, map ${maps} rem`;
+  }
+})();
+</script>
+</body>
+</html>

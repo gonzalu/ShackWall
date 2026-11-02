@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Full screen when added to an iPad's home screen. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ShackWall</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="call" id="call">—</div>
+  <div class="meta" id="meta"></div>
+  <div class="clocks">
+    <div class="clock"><div class="t mono" id="utc">--:--</div><div class="l">UTC</div></div>
+    <div class="clock"><div class="t mono" id="local">--:--</div><div class="l" id="local-label">Local</div></div>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <section class="panel" id="solar">
+      <h2>Space weather <span class="age" id="solar-age"></span></h2>
+      <div class="stats">
+        <div class="stat"><div class="v" id="sfi">—</div><div class="k">Solar flux</div></div>
+        <div class="stat"><div class="v" id="ssn">—</div><div class="k">Sunspots</div></div>
+        <div class="stat"><div class="v" id="kp">—</div><div class="k">K index</div></div>
+        <div class="stat"><div class="v" id="a">—</div><div class="k">A index</div></div>
+        <div class="stat"><div class="v" id="xray">—</div><div class="k">X-ray</div></div>
+        <div class="stat"><div class="v" id="wind">—</div><div class="k">Wind km/s</div></div>
+      </div>
+      <div class="scales" id="scales"></div>
+    </section>
+    <section class="panel" id="hf">
+      <h2>HF bands <span class="age" id="hf-src"></span></h2>
+      <div class="bands" id="bands"><div class="pending">Waiting for data</div></div>
+    </section>
+    <section class="panel wx" id="wx">
+      <h2>Weather <span class="age" id="wx-src"></span></h2>
+      <div class="line"><div class="when">Now</div><div class="what" id="wx-now">Waiting for data</div></div>
+      <div class="line"><div class="when">Next 24 h</div><div class="what" id="wx-next"></div></div>
+      <div class="state" id="wx-state"></div>
+    </section>
+  </aside>
+
+  <section class="panel feature" id="feature">
+    <h2 id="feature-title"></h2>
+    <div class="feature-body" id="feature-body"></div>
+  </section>
+</main>
+<div class="dots" id="dots"></div>
+<div class="credit" id="credit"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

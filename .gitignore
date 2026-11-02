@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Your settings and API keys. Copy shackwall.env.example.
+shackwall.env
+
+# Downloaded and cached data - orbits, spots, forecasts - all refetchable.
+data/
+
+# Renders and screenshots made while choosing a design.
+design/out/

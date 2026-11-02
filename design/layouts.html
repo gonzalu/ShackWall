@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShackWall layout samples</title>
+<!--
+  Four candidate layouts for the main screen, with fixed sample data.
+  Open as layouts.html?layout=A (B, C, D). Everything is sized in rem, and
+  the root size is set from the viewport, so a 720p TV, a 4K TV and an iPad
+  all show the same layout at their own resolution.
+-->
+<style>
+  :root {
+    --bg: #0b0e12; --panel: #141a21; --line: #243040;
+    --text: #e6edf3; --dim: #8b98a5;
+    --good: #3fb950; --fair: #d29922; --poor: #f85149; --accent: #58a6ff;
+  }
+  /* 16px on a 1920x1080 screen; scales with whichever side runs out first. */
+  html { font-size: min(calc(100vw / 120), calc(100vh / 67.5)); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    width: 100vw; height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .mono { font-family: Consolas, "SF Mono", Menlo, monospace; }
+
+  header {
+    display: flex; align-items: center; gap: 2rem;
+    padding: 0.8rem 1.5rem; border-bottom: 1px solid var(--line);
+  }
+  header .call { font-size: 2.2rem; font-weight: 700; letter-spacing: 0.05em; }
+  header .meta { color: var(--dim); font-size: 1.1rem; }
+  header .clocks { margin-left: auto; display: flex; gap: 2.5rem; }
+  .clock { text-align: right; }
+  .clock .t { font-size: 2.2rem; font-weight: 600; }
+  .clock .l { font-size: 0.9rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  main { flex: 1; min-height: 0; padding: 1rem 1.5rem; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 0.6rem;
+    padding: 1rem 1.2rem; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .panel h2 {
+    font-size: 0.95rem; font-weight: 600; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.12em;
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+  .stat .v { font-size: 2.4rem; font-weight: 700; }
+  .stat .k { font-size: 0.9rem; color: var(--dim); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 1.1rem; }
+  td, th { padding: 0.25rem 0.4rem; text-align: left; }
+  th { color: var(--dim); font-weight: 500; font-size: 0.9rem; }
+  .g { color: var(--good); } .f { color: var(--fair); } .p { color: var(--poor); }
+
+  .map {
+    flex: 1; min-height: 6rem; border-radius: 0.4rem;
+    background: linear-gradient(90deg, #1d3557 0 38%, #0a1220 52% 78%, #1d3557 92%);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--dim); font-size: 1rem;
+  }
+  .spots td:first-child { font-weight: 600; }
+
+  nav { display: flex; gap: 0.4rem; padding: 0 1.5rem 0.8rem; }
+  nav span {
+    padding: 0.5rem 1.1rem; border-radius: 0.4rem; font-size: 1rem;
+    background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+  }
+  nav span.on { color: var(--text); border-color: var(--accent); }
+  .dots { display: flex; gap: 0.5rem; justify-content: center; padding-bottom: 0.8rem; }
+  .dots i { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--line); }
+  .dots i.on { background: var(--accent); }
+
+  .sample {
+    position: fixed; right: 1rem; bottom: 0.6rem; font-size: 0.8rem;
+    color: var(--dim); opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="call">N2MAV</div>
+  <div class="meta">FN30bv · Riverdale, NY · CQ 5 · ITU 8</div>
+  <div class="clocks">
+    <div class="clock"><div class="t mono">01:34</div><div class="l">UTC</div></div>
+    <div class="clock"><div class="t mono">21:34</div><div class="l">Local</div></div>
+  </div>
+</header>
+<main id="main"></main>
+<div id="foot"></div>
+<div class="sample">Layout <span id="which"></span> · sample data</div>
+
+<template id="t-solar">
+  <section class="panel">
+    <h2>Space weather</h2>
+    <div class="stats">
+      <div class="stat"><div class="v">142</div><div class="k">Solar flux</div></div>
+      <div class="stat"><div class="v">118</div><div class="k">Sunspots</div></div>
+      <div class="stat"><div class="v f">4</div><div class="k">K index</div></div>
+      <div class="stat"><div class="v">12</div><div class="k">A index</div></div>
+      <div class="stat"><div class="v">C2.1</div><div class="k">X-ray</div></div>
+      <div class="stat"><div class="v">512</div><div class="k">Wind km/s</div></div>
+    </div>
+  </section>
+</template>
+<template id="t-bands">
+  <section class="panel">
+    <h2>HF bands</h2>
+    <table>
+      <tr><th>Band</th><th>Day</th><th>Night</th></tr>
+      <tr><td>80–40 m</td><td class="f">Fair</td><td class="g">Good</td></tr>
+      <tr><td>30–20 m</td><td class="g">Good</td><td class="g">Good</td></tr>
+      <tr><td>17–15 m</td><td class="g">Good</td><td class="f">Fair</td></tr>
+      <tr><td>12–10 m</td><td class="f">Fair</td><td class="p">Poor</td></tr>
+    </table>
+  </section>
+</template>
+<template id="t-map">
+  <section class="panel">
+    <h2>Gray line · PSKReporter</h2>
+    <div class="map">gray-line map</div>
+  </section>
+</template>
+<template id="t-pota">
+  <section class="panel">
+    <h2>POTA / SOTA spots</h2>
+    <table class="spots">
+      <tr><th>Call</th><th>Ref</th><th>kHz</th><th>Mode</th></tr>
+      <tr><td>K2ABC</td><td>US-0712</td><td class="mono">14062</td><td>CW</td></tr>
+      <tr><td>W1XYZ/P</td><td>W1/HA-001</td><td class="mono">7032</td><td>CW</td></tr>
+      <tr><td>N3QRP</td><td>US-1608</td><td class="mono">14285</td><td>SSB</td></tr>
+      <tr><td>VE3PRK</td><td>CA-0234</td><td class="mono">18100</td><td>FT8</td></tr>
+    </table>
+  </section>
+</template>
+<template id="t-sats">
+  <section class="panel">
+    <h2>Next satellite passes</h2>
+    <table>
+      <tr><th>Sat</th><th>AOS</th><th>Max el</th><th>Dur</th></tr>
+      <tr><td>ISS</td><td class="mono">02:11</td><td>54°</td><td>9 m</td></tr>
+      <tr><td>SO-50</td><td class="mono">02:48</td><td>22°</td><td>11 m</td></tr>
+      <tr><td>AO-91</td><td class="mono">03:30</td><td>71°</td><td>13 m</td></tr>
+    </table>
+  </section>
+</template>
+<template id="t-wx">
+  <section class="panel">
+    <h2>Weather · Riverdale</h2>
+    <div class="stats">
+      <div class="stat"><div class="v">48°F</div><div class="k">Clear</div></div>
+      <div class="stat"><div class="v">14</div><div class="k">Wind mph NW</div></div>
+      <div class="stat"><div class="v g">None</div><div class="k">Lightning</div></div>
+    </div>
+  </section>
+</template>
+
+<script>
+  const layout = (new URLSearchParams(location.search).get('layout') || 'A').toUpperCase();
+  document.getElementById('which').textContent = layout;
+  const main = document.getElementById('main');
+  const foot = document.getElementById('foot');
+  const put = (id, el) => el.appendChild(document.getElementById('t-' + id).content.cloneNode(true));
+
+  function grid(el, cols, rows, areas) {
+    el.style.display = 'grid';
+    el.style.gap = '1rem';
+    el.style.gridTemplateColumns = cols;
+    el.style.gridTemplateRows = rows;
+    if (areas) el.style.gridTemplateAreas = areas;
+  }
+
+  if (layout === 'A') {
+    // Tabs, as on LB0FI's panel: touch to switch, auto-advance on a TV.
+    grid(main, '1fr 1fr', '1fr 1fr');
+    ['solar', 'bands', 'wx', 'sats'].forEach(id => put(id, main));
+    foot.innerHTML = '<nav>' + ['Space wx', 'Bands', 'Satellites', 'POTA/SOTA', 'PSK', 'Weather', 'APRS', 'ADS-B', 'AIS']
+      .map((n, i) => `<span class="${i ? '' : 'on'}">${n}</span>`).join('') + '</nav>';
+  } else if (layout === 'B') {
+    // One subject fills the screen and pages rotate, like a departures board.
+    grid(main, '2fr 1fr', '1fr');
+    put('map', main);
+    const side = document.createElement('div');
+    grid(side, '1fr', '1fr 1fr');
+    put('solar', side); put('bands', side);
+    main.appendChild(side);
+    foot.innerHTML = '<div class="dots">' + Array.from({length: 9}, (_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') + '</div>';
+  } else if (layout === 'C') {
+    // Everything at once, nothing rotates.
+    grid(main, '1fr 1.4fr 1fr', '1fr 1fr',
+      '"solar map pota" "bands map sats"');
+    [['solar', 'solar'], ['map', 'map'], ['pota', 'pota'], ['bands', 'bands'], ['sats', 'sats']].forEach(([id, area]) => {
+      put(id, main); main.lastElementChild.style.gridArea = area;
+    });
+  } else {
+    // A fixed column of the essentials, and one large rotating panel.
+    grid(main, '1fr 2.2fr', '1fr');
+    const side = document.createElement('div');
+    grid(side, '1fr', '1fr 1fr 0.8fr');
+    put('solar', side); put('bands', side); put('wx', side);
+    main.appendChild(side);
+    put('map', main);
+    foot.innerHTML = '<div class="dots">' + Array.from({length: 6}, (_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') + '</div>';
+  }
+
+  // ?measure=1 writes what the layout actually rendered into the page, for
+  // `msedge --headless --dump-dom`: the smallest text on screen, and any panel
+  // whose content no longer fits.
+  if (new URLSearchParams(location.search).has('measure')) {
+    let minFont = Infinity, minText = '';
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode, el = node.parentElement;
+      if (!node.textContent.trim() || el.closest('.sample, script, template')) continue;
+      const px = parseFloat(getComputedStyle(el).fontSize);
+      if (px < minFont) { minFont = px; minText = node.textContent.trim(); }
+    }
+    const clipped = [...document.querySelectorAll('.panel')]
+      .filter(p => p.scrollHeight > p.clientHeight + 1)
+      .map(p => p.querySelector('h2').textContent + ' +' + (p.scrollHeight - p.clientHeight) + 'px');
+    const largest = Math.max(...[...document.querySelectorAll('.stat .v, .clock .t')]
+      .map(e => parseFloat(getComputedStyle(e).fontSize)));
+    const out = document.createElement('pre');
+    out.id = 'measure';
+    out.textContent = JSON.stringify({ layout, w: innerWidth, h: innerHeight,
+      minFontPx: minFont, minText, figurePx: largest, clipped });
+    document.body.appendChild(out);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShackWall forecast page samples</title>
+<!-- Four ways to draw the forecast page in the big feature panel, each at the
+     size the real page gives it: 79.8 x 58.4 rem on a 16:9 TV and 117 x 62.7
+     rem on an iPad in landscape. Drawn at half scale (1rem = 8px) to fit the
+     screen. The iPad box carries a made-up wind advisory to show alerts. -->
+<link rel="stylesheet" href="../frontend/app.css">
+<script src="forecast-data.js"></script>
+<style>
+  html { font-size: 8px; }
+  body { width: auto; height: auto; overflow: auto; padding: 16px; display: block; }
+  .row { display: flex; gap: 20px; margin-bottom: 28px; align-items: flex-start; }
+  .label { font-size: 24px; font-weight: 700; width: 28px; }
+  .box .panel { width: 100%; height: 100%; }
+  .measure { font: 12px Consolas, monospace; color: var(--dim); margin-top: 4px; }
+  .tv { width: 79.8rem; height: 58.4rem; }
+  .ipad { width: 117rem; height: 62.7rem; }
+  .feature-body { display: flex; flex-direction: column; gap: 1.2rem; }
+
+  .alert { border-left: 0.5rem solid var(--fair); background: #2a2210; padding: 0.6rem 1rem; border-radius: 0.3rem; }
+  .alert b { font-size: 1.8rem; color: var(--fair); margin-right: 0.8rem; }
+  .alert span { font-size: 1.5rem; }
+
+  .hi { color: #f0883e; } .lo { color: #79c0ff; }
+  .k { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* A: a card per period */
+  .cards { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr 1fr; gap: 1rem; min-height: 0; }
+  .card { border: 1px solid var(--line); border-radius: 0.5rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .card .name { font-size: 1.6rem; font-weight: 600; }
+  .card .t { font-size: 4rem; font-weight: 700; line-height: 1.1; }
+  .card .short { font-size: 1.6rem; }
+  .card .sub { font-size: 1.3rem; color: var(--dim); margin-top: auto; }
+
+  /* B: 48-hour charts, then the next four periods */
+  .charts { flex: 1; display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 0.6rem; min-height: 0; }
+  .chart { display: flex; flex-direction: column; min-height: 0; }
+  .chart .head { display: flex; gap: 1.4rem; align-items: baseline; font-size: 1.3rem; color: var(--dim); }
+  .chart .head b { color: var(--text); font-size: 1.4rem; font-weight: 600; }
+  .chart .head i { display: inline-block; width: 1.4rem; height: 0.25rem; vertical-align: middle; margin-right: 0.4rem; border-radius: 0.2rem; }
+  .chart svg { flex: 1; min-height: 0; width: 100%; display: block; }
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  .strip > div { display: flex; flex-direction: column; min-width: 0; }
+  .strip .name { font-size: 1.4rem; font-weight: 600; }
+  .strip .t { font-size: 2.4rem; font-weight: 700; }
+  .strip .short { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* C: a table, one row per period */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl td, .tbl th { padding: 0.65rem 0.8rem 0.65rem 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: baseline; }
+  .tbl th { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .tbl .name { font-size: 1.8rem; font-weight: 600; white-space: nowrap; }
+  .tbl .t { font-size: 2.6rem; font-weight: 700; }
+  .tbl .short { font-size: 1.8rem; }
+  .tbl .sub { font-size: 1.6rem; color: var(--dim); white-space: nowrap; }
+
+  /* D: today and tonight in words, the rest small */
+  .words { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .words .name { font-size: 2rem; font-weight: 600; }
+  .words .t { font-size: 5rem; font-weight: 700; line-height: 1.1; }
+  .words p { font-size: 2rem; line-height: 1.35; margin-top: 0.6rem; }
+  .rest { margin-top: auto; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.8rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  .rest .name { font-size: 1.3rem; font-weight: 600; }
+  .rest .t { font-size: 2.2rem; font-weight: 700; }
+  .rest .short { font-size: 1.2rem; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const TZ = SNAPSHOT.timezone;
+const fc = SNAPSHOT.forecast, hourly = SNAPSHOT.hourly;
+// ?stress swaps in the longest wording NWS writes on a stormy day, to see
+// what gives way first.
+if (location.search.includes('stress')) for (const p of fc) {
+  p.short = 'Chance Showers And Thunderstorms then Showers And Thunderstorms Likely';
+  p.detail = 'Showers and thunderstorms likely, mainly after 2pm. Some of the storms could be severe, with damaging winds and large hail. Cloudy, with a high near 78. Southwest wind 15 to 20 mph, with gusts as high as 40 mph. Chance of precipitation is 70%. New rainfall amounts between a half and three quarters of an inch possible, except higher amounts possible in thunderstorms.';
+  p.wind = 'SW 15 to 20 mph';
+}
+const ALERT = { event: 'Wind Advisory', headline: 'Wind Advisory until 6 PM EST Tuesday. Southwest winds 20 to 30 mph with gusts up to 50 mph.' };
+// Chart series take the reference palette's first two categorical slots, dark steps.
+const S1 = '#3987e5', S2 = '#d95926';
+const WIND_WATCH = 30;
+
+const temp = p => `<span class="${p.daytime ? 'hi' : 'lo'}">${p.temp_f}°</span>`;
+const hiLo = p => p.daytime ? 'High' : 'Low';
+const rain = p => p.precip_pct ? `${p.precip_pct}% rain` : 'Dry';
+const alertBar = a => a ? `<div class="alert"><b>${a.event}</b><span>${a.headline.replace(a.event, '').replace(/^ until/, 'Until')}</span></div>` : '';
+const hour = iso => new Date(iso).toLocaleString('en-US', { hour: 'numeric', timeZone: TZ });
+const weekday = iso => new Date(iso).toLocaleString('en-US', { weekday: 'short', timeZone: TZ });
+
+// A small line chart, drawn after layout at the pixel size it was given, so
+// its text stays the same rem size as the rest of the page.
+function drawChart(svg, { series, max, ref }) {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const left = 4 * rem, bottom = 2 * rem, top = 0.6 * rem;
+  const x = i => left + (W - left) * i / (hourly.length - 1);
+  const lo = series.some(s => s.min != null) ? Math.min(...series.map(s => s.min)) : 0;
+  const y = v => top + (H - top - bottom) * (1 - (v - lo) / (max - lo));
+  let g = '';
+  // Night: 6 PM to 6 AM, as NWS splits its periods.
+  hourly.forEach((h, i) => {
+    const hr = +new Date(h.time).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: TZ });
+    if (hr >= 18 || hr < 6) g += `<rect x="${x(i) - (W - left) / (hourly.length - 1) / 2}" y="${top}" width="${(W - left) / (hourly.length - 1)}" height="${H - top - bottom}" fill="#ffffff" opacity="0.035"/>`;
+  });
+  for (const v of [lo, (lo + max) / 2, max]) {
+    g += `<line x1="${left}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
+    g += `<text x="${left - 0.6 * rem}" y="${y(v) + 0.45 * rem}" text-anchor="end" fill="var(--dim)" font-size="${1.2 * rem}">${Math.round(v)}</text>`;
+  }
+  if (ref) g += `<line x1="${left}" x2="${W}" y1="${y(ref.v)}" y2="${y(ref.v)}" stroke="var(--fair)" stroke-width="2" stroke-dasharray="6 5"/>` +
+    `<text x="${W - 0.3 * rem}" y="${y(ref.v) - 0.4 * rem}" text-anchor="end" fill="var(--dim)" font-size="${1.2 * rem}">${ref.label}</text>`;
+  hourly.forEach((h, i) => {
+    const hr = +new Date(h.time).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: TZ });
+    if (hr % 6 === 0) g += `<text x="${x(i)}" y="${H - 0.4 * rem}" text-anchor="middle" fill="var(--dim)" font-size="${1.2 * rem}">${hr === 0 ? weekday(h.time) : hour(h.time)}</text>`;
+  });
+  for (const s of series) {
+    const pts = hourly.map((h, i) => h[s.key] == null ? null : `${x(i)},${y(h[s.key])}`).filter(Boolean).join(' ');
+    g += `<polyline points="${pts}" fill="none" stroke="${s.colour}" stroke-width="2" stroke-linejoin="round"/>`;
+  }
+  svg.innerHTML = g;
+}
+
+const chartHead = (title, items) => `<div class="head"><b>${title}</b>` +
+  items.map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('') + '</div>';
+
+const variants = {
+  A: a => alertBar(a) + `<div class="cards">` + fc.map(p => `<div class="card">
+      <div class="name">${p.name}</div><div class="t">${temp(p)}</div><div class="k">${hiLo(p)}</div>
+      <div class="short">${p.short}</div><div class="sub">${p.wind}<br>${rain(p)}</div></div>`).join('') + `</div>`,
+  B: a => alertBar(a) + `<div class="charts">
+      <div class="chart">${chartHead('Temperature °F', [])}<svg data-chart="temp"></svg></div>
+      <div class="chart">${chartHead('Wind mph', [[S1, 'Sustained'], [S2, 'Gusts']])}<svg data-chart="wind"></svg></div>
+      <div class="chart">${chartHead('Chance %', [[S1, 'Rain'], [S2, 'Thunder']])}<svg data-chart="chance"></svg></div>
+    </div><div class="strip">` + fc.slice(0, 4).map(p => `<div><div class="name">${p.name}</div>
+      <div class="t">${temp(p)}</div><div class="short">${p.short} · ${rain(p)}</div></div>`).join('') + `</div>`,
+  C: a => alertBar(a) + `<table class="tbl"><tr><th></th><th>Temp</th><th>Sky</th><th>Wind</th><th>Rain</th></tr>` +
+    fc.map(p => `<tr><td class="name">${p.name}</td><td class="t">${temp(p)}</td><td class="short">${p.short}</td>
+      <td class="sub">${p.wind}</td><td class="sub">${p.precip_pct ?? 0}%</td></tr>`).join('') + `</table>`,
+  D: a => alertBar(a) + `<div class="words">` + fc.slice(0, 2).map(p => `<div>
+      <div class="name">${p.name}</div><div class="t">${temp(p)}</div><p>${p.detail}</p></div>`).join('') +
+    `</div><div class="rest">` + fc.slice(2).map(p => `<div><div class="name">${p.name}</div>
+      <div class="t">${temp(p)}</div><div class="short">${p.short}<br>${rain(p)}</div></div>`).join('') + `</div>`,
+};
+
+const out = document.getElementById('out');
+for (const [k, body] of Object.entries(variants)) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<div class="label">${k}</div>` + [['tv', null], ['ipad', ALERT]].map(([size, alert]) =>
+    `<div><div class="box ${size}" id="${k}-${size}"><section class="panel feature">
+       <h2>Forecast · Riverdale · NWS</h2><div class="feature-body">${body(alert)}</div></section></div>
+     <div class="measure" id="m-${k}-${size}"></div></div>`).join('');
+  out.appendChild(row);
+}
+const temps = hourly.map(h => h.temp_f);
+for (const svg of document.querySelectorAll('svg[data-chart]')) {
+  const kind = svg.dataset.chart;
+  if (kind === 'temp') drawChart(svg, { series: [{ key: 'temp_f', colour: S1, min: Math.floor(Math.min(...temps) / 10) * 10 }],
+    max: Math.ceil(Math.max(...temps) / 10) * 10 });
+  if (kind === 'wind') drawChart(svg, { series: [{ key: 'wind_mph', colour: S1 }, { key: 'gust_mph', colour: S2 }],
+    max: Math.max(40, ...hourly.map(h => h.gust_mph || 0)), ref: { v: WIND_WATCH, label: 'watch antennas' } });
+  if (kind === 'chance') drawChart(svg, { series: [{ key: 'precip_pct', colour: S1 }, { key: 'thunder_pct', colour: S2 }], max: 100 });
+}
+
+// C shows as many periods as fit; on a wordy day that's fewer than eight.
+for (const tbl of document.querySelectorAll('.tbl')) {
+  const body = tbl.closest('.feature-body');
+  while (tbl.rows.length > 2 && tbl.getBoundingClientRect().bottom > body.getBoundingClientRect().bottom)
+    tbl.deleteRow(-1);
+}
+
+// Measured, in rem: smallest text, anything cut off, where the content ends.
+const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+for (const box of document.querySelectorAll('.box')) {
+  const panel = box.querySelector('.panel'), body = panel.querySelector('.feature-body');
+  const br = body.getBoundingClientRect();
+  let min = Infinity, overflow = false, bottom = 0;
+  for (const el of body.querySelectorAll('*')) {
+    if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+      min = Math.min(min, parseFloat(el.getAttribute('font-size') || getComputedStyle(el).fontSize));
+    const r = el.getBoundingClientRect();
+    if (r.height && (r.bottom > br.bottom + 1 || r.right > br.right + 1)) overflow = true;
+    if (r.height) bottom = Math.max(bottom, r.bottom);
+  }
+  const cut = [...body.querySelectorAll('.short')].filter(e => e.scrollWidth > e.clientWidth + 1).length;
+  document.getElementById('m-' + box.id).textContent =
+    `${box.id}: min ${(min / remPx).toFixed(2)}rem, ${overflow ? 'CLIPPED' : 'fits'}${cut ? `, ${cut} shortened` : ''}, content ends at ${(100 * (bottom - br.top) / br.height).toFixed(0)}%`;
+}
+</script>
+</body>
+</html>

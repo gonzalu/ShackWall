@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShackWall weather panel samples</title>
+<!-- Four ways to draw the weather panel at the size the real page gives it:
+     36.3 x 14.6 rem on a 16:9 TV and 33.8 x 17.1 rem on an iPad. The third
+     box in each row is the TV size during a severe thunderstorm warning. -->
+<link rel="stylesheet" href="../frontend/app.css">
+<style>
+  html { font-size: 16px; }
+  body { width: auto; height: auto; overflow: auto; padding: 24px; display: block; }
+  .row { display: flex; gap: 28px; margin-bottom: 36px; align-items: flex-start; }
+  .label { font-size: 28px; font-weight: 700; width: 36px; }
+  .box .panel { width: 100%; height: 100%; }
+  .measure { font: 13px Consolas, monospace; color: var(--dim); margin-top: 6px; }
+  .tv { width: 36.3rem; height: 14.6rem; }
+  .ipad { width: 33.8rem; height: 17.1rem; }
+  .src { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .dim { color: var(--dim); }
+  .bg-ok { background: var(--good); } .bg-watch { background: var(--fair); } .bg-lower { background: var(--poor); }
+  .fg-ok { color: var(--good); } .fg-watch { color: var(--fair); } .fg-lower { color: var(--poor); }
+
+  /* A: big temperature, details beside it, antenna line at the bottom */
+  .A .top { display: flex; gap: 1.6rem; align-items: center; }
+  .A .temp { font-size: 4.4rem; font-weight: 700; line-height: 1; }
+  .A .sky { font-size: 1.5rem; }
+  .A .details { font-size: 1.4rem; line-height: 1.5; }
+  .A .ant { margin-top: auto; font-size: 1.5rem; font-weight: 600; }
+
+  /* B: a stats grid like the space weather panel, antenna state in the title */
+  .B .stats .v { font-size: 2.2rem; }
+  .B .chip { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--bg);
+             padding: 0 0.6rem; border-radius: 0.3rem; }
+
+  /* C: the antenna state as a full-width banner, the weather in one line */
+  .C .banner { border-radius: 0.4rem; color: var(--bg); padding: 0.5rem 0.9rem; }
+  .C .banner b { font-size: 1.8rem; display: block; }
+  .C .banner span { font-size: 1.3rem; font-weight: 600; }
+  .C .now { font-size: 1.6rem; }
+  .C .now b { font-size: 2.6rem; margin-right: 0.6rem; }
+
+  /* D: now and the next 24 hours as two rows, the state as the panel's edge */
+  .panel.D { border-left-width: 0.5rem; }
+  .D .line { display: grid; grid-template-columns: 7rem 1fr; align-items: baseline; gap: 0.6rem; }
+  .D .when { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+  .D .what { font-size: 1.6rem; }
+  .D .what b { font-size: 2.4rem; margin-right: 0.5rem; }
+  .D .state { font-size: 1.5rem; font-weight: 700; margin-top: auto; white-space: nowrap; }
+  .D .state .why { font-size: 1.3rem; font-weight: 400; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+// Live NWS data for FN30bv, 2026-11-02 16:00 UTC, and a made-up storm.
+const calm = {
+  now: { temp: 63, sky: 'Clear', wind: 'SW 10 mph', gust: null, humidity: 36, pressure: '30.41' },
+  next: { gust: 16, gustAt: '1 PM', thunder: 0 },
+  antenna: { level: 'ok', reasons: [] }, station: 'KLGA',
+};
+const storm = {
+  now: { temp: 71, sky: 'Thunderstorm', wind: 'S 22 mph', gust: 41, humidity: 88, pressure: '29.62' },
+  next: { gust: 48, gustAt: '6 PM', thunder: 70 },
+  antenna: { level: 'lower', reasons: ['Severe Thunderstorm Warning', 'Gusts to 48 mph forecast'] }, station: 'KLGA',
+};
+const word = { ok: 'Antennas OK', watch: 'Watch antennas', lower: 'Lower antennas' };
+const why = w => w.antenna.reasons.join(' · ') ||
+  `Gusts to ${w.next.gust} mph · thunder ${w.next.thunder}% · next 24 h`;
+// Gusts the way a METAR writes them: S 22 G41 mph.
+const gustNow = w => w.now.gust ? ` G${w.now.gust}` : '';
+const wind = w => w.now.wind.replace(' mph', '') + gustNow(w) + ' mph';
+
+const variants = {
+  A: w => `<h2>Weather <span class="src">NWS · ${w.station}</span></h2>
+    <div class="top"><div class="temp">${w.now.temp}°</div>
+      <div><div class="sky">${w.now.sky}</div>
+      <div class="details dim">${wind(w)} · ${w.now.humidity}% · ${w.now.pressure} in</div></div></div>
+    <div class="ant fg-${w.antenna.level}">${word[w.antenna.level]} <span class="dim" style="font-weight:400;font-size:1.3rem">· ${why(w)}</span></div>`,
+  B: w => `<h2>Weather <span class="chip bg-${w.antenna.level}">${word[w.antenna.level]}</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="v">${w.now.temp}°F</div><div class="k">${w.now.sky}</div></div>
+      <div class="stat"><div class="v">${w.now.wind.split(' ')[1]}</div><div class="k">Wind ${w.now.wind.split(' ')[0]} mph</div></div>
+      <div class="stat"><div class="v">${w.now.gust ?? '—'}</div><div class="k">Gust mph</div></div>
+      <div class="stat"><div class="v">${w.now.humidity}%</div><div class="k">Humidity</div></div>
+      <div class="stat"><div class="v ${w.next.gust >= 30 ? 'fair' : ''}">${w.next.gust}</div><div class="k">Gust 24 h</div></div>
+      <div class="stat"><div class="v ${w.next.thunder >= 30 ? 'fair' : ''}">${w.next.thunder}%</div><div class="k">Thunder 24 h</div></div>
+    </div>`,
+  C: w => `<h2>Weather <span class="src">NWS · ${w.station}</span></h2>
+    <div class="banner bg-${w.antenna.level}"><b>${word[w.antenna.level]}</b><span>${w.antenna.reasons[0] || why(w)}</span></div>
+    <div class="now"><b>${w.now.temp}°</b>${w.now.sky} · ${wind(w)}</div>`,
+  D: w => `<h2>Weather <span class="src">NWS · ${w.station}</span></h2>
+    <div class="line"><div class="when">Now</div><div class="what"><b>${w.now.temp}°</b>${w.now.sky} · ${wind(w)}</div></div>
+    <div class="line"><div class="when">Next 24 h</div><div class="what">Gusts to ${w.next.gust} mph · thunder ${w.next.thunder}%</div></div>
+    <div class="state fg-${w.antenna.level}">${word[w.antenna.level]}${w.antenna.reasons.length ? ' <span class="why">' + w.antenna.reasons[0] + '</span>' : ''}</div>`,
+};
+
+const out = document.getElementById('out');
+for (const [k, body] of Object.entries(variants)) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<div class="label">${k}</div>` + [['tv', calm], ['ipad', calm], ['tv', storm]].map(([size, w], i) =>
+    `<div><div class="box ${size}" id="${k}-${size}-${i}"><section class="panel ${k}"
+       style="${k === 'D' ? 'border-left-color:var(--' + { ok: 'good', watch: 'fair', lower: 'poor' }[w.antenna.level] + ')' : ''}">${body(w)}</section></div>
+     <div class="measure" id="m-${k}-${size}-${i}"></div></div>`).join('');
+  out.appendChild(row);
+}
+
+// Measured: smallest text, anything cut off, and where the content ends.
+for (const box of document.querySelectorAll('.box')) {
+  const panel = box.querySelector('.panel');
+  const pr = panel.getBoundingClientRect();
+  let min = Infinity, overflow = false;
+  for (const el of panel.querySelectorAll('*')) {
+    if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+      min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+    const r = el.getBoundingClientRect();
+    if (r.bottom > pr.bottom - 1 || r.right > pr.right - 1) overflow = true;
+  }
+  if (panel.scrollHeight > panel.clientHeight + 1 || panel.scrollWidth > panel.clientWidth + 1) overflow = true;
+  let bottom = 0;
+  for (const el of panel.children) bottom = Math.max(bottom, el.getBoundingClientRect().bottom);
+  document.getElementById('m-' + box.id).textContent =
+    `${box.id}: min ${(min / 16).toFixed(2)}rem, ${overflow ? 'CLIPPED' : 'fits'}, content ends at ${(100 * (bottom - pr.top) / pr.height).toFixed(0)}%`;
+}
+</script>
+</body>
+</html>

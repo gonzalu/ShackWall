@@ -1,0 +1,10 @@
+fastapi>=0.111
+# Plain uvicorn, not uvicorn[standard]: the extras pull in uvloop and friends,
+# which this project doesn't use and which compile from source on a Pi.
+uvicorn>=0.29
+httpx>=0.27
+# Satellite pass prediction (SGP4). Pulls in numpy, which has wheels for
+# x86-64 and 64-bit Raspberry Pi OS.
+skyfield>=1.49
+# PSKReporter's live MQTT feed.
+paho-mqtt>=2.0
