@@ -10,6 +10,21 @@ to, or a Raspberry Pi plugged into a monitor.
 > National Weather Service, amateur satellite passes, POTA spots and
 > PSKReporter band activity work. APRS, aircraft and ships are still to come.
 
+## What it looks like
+
+On a 1080p TV: the column on the left stays put, and the big panel takes
+turns between the forecast, satellite passes, POTA spots, band activity and
+space weather alerts.
+
+![The forecast page: 48 hours of temperature, wind against the antenna limit, and rain and thunder chances](img/forecast.png)
+
+| | |
+|---|---|
+| ![Satellite passes: a sky plot of the next three passes beside the next seven, with frequencies](img/satellites.png) | ![POTA spots on a map centred on the station, beside the newest spots](img/pota.png) |
+| Satellite passes | POTA spots |
+| ![Band activity: PSKReporter reports to and from the grid square on a world map with night shaded](img/band-activity.png) | ![On an iPad the fixed panels move across the top](img/ipad.png) |
+| Band activity from PSKReporter | On an iPad |
+
 ## Install
 
 You need an always-on Linux machine on your network (a Raspberry Pi 4 or 5, or
