@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ShackWall APRS page samples</title>
+<!-- Four ways to draw the APRS page in the big feature panel at the size the
+     real page gives it: 79.8 x 58.4 rem on a 16:9 TV and 117 x 62.7 rem on an
+     iPad in landscape, drawn at half scale (1rem = 8px). A and B use a live
+     OpenStreetMap map from OpenFreeMap (as FlightBoard's dashboard does); D
+     uses Natural Earth 1:10m drawn offline. D borrows FlightBoard's generated
+     basemap from design/out/, which git ignores. -->
+<link rel="stylesheet" href="../frontend/app.css">
+<script src="aprs-data.js"></script>
+<script src="out/fb-basemap.js"></script>
+<style>
+  html { font-size: 8px; }
+  body { width: auto; height: auto; overflow: auto; padding: 16px; display: block; }
+  .row { display: flex; gap: 20px; margin-bottom: 28px; align-items: flex-start; }
+  .label { font-size: 24px; font-weight: 700; width: 28px; }
+  .box .panel { width: 100%; height: 100%; }
+  .measure { font: 12px Consolas, monospace; color: var(--dim); margin-top: 4px; }
+  .tv { width: 79.8rem; height: 58.4rem; }
+  .ipad { width: 117rem; height: 62.7rem; }
+  .feature-body { display: flex; flex-direction: column; gap: 1rem; }
+  .mono { font-family: Consolas, "SF Mono", Menlo, monospace; }
+  .mapbox { position: relative; min-height: 0; overflow: hidden; border-radius: 0.4rem; background: #111b21; }
+  .mapbox .gl, .mapbox svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .credit-map { position: absolute; right: 0.4rem; bottom: 0.3rem; font-size: 1.2rem; color: var(--dim); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; font-size: 1.3rem; color: var(--dim); }
+  .split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.6rem; }
+  .list { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .st { display: grid; grid-template-columns: 2rem 1fr auto; gap: 0 0.8rem; padding: 0.4rem 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .st .call { font-size: 1.6rem; font-weight: 700; }
+  .st .d { font-size: 1.4rem; text-align: right; white-space: nowrap; }
+  .st .sub { grid-column: 2 / -1; font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .more { font-size: 1.3rem; color: var(--dim); padding-top: 0.3rem; }
+  .groups { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4rem; }
+  .group { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .group h3 { font-size: 1.8rem; border-bottom: 2px solid var(--line); padding-bottom: 0.3rem; margin-bottom: 0.3rem; }
+  .group h3 span { color: var(--dim); font-weight: 400; font-size: 1.4rem; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const NOW = SNAPSHOT.server_time * 1000, HOME = SNAPSHOT.home, A = SNAPSHOT.aprs;
+const stations = A.stations;
+const RANGE_KM = A.range_km;
+// Three colour slots, kept for the three kinds worth finding at a glance; the
+// rest are grey. Each kind also has its own shape, so colour is never alone.
+const KIND = {
+  mobile: { colour: '#3987e5', name: 'Mobiles', shape: 'arrow' },
+  weather: { colour: '#d95926', name: 'Weather', shape: 'circle' },
+  object: { colour: '#199e70', name: 'Objects', shape: 'diamond' },
+  digi: { colour: '#8b98a5', name: 'Digis and iGates', shape: 'square' },
+  igate: { colour: '#8b98a5', name: 'Digis and iGates', shape: 'square' },
+  home: { colour: '#8b98a5', name: 'Fixed', shape: 'dot' },
+  other: { colour: '#8b98a5', name: 'Fixed', shape: 'dot' },
+};
+const DIR8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const dir = b => DIR8[Math.round(b / 45) % 8];
+const mi = km => km < 10 ? (km / 1.609344).toFixed(1) : Math.round(km / 1.609344);
+const ago = s => `${Math.max(0, Math.round((NOW / 1000 - s.heard) / 60))} min`;
+const what = s => s.kind === 'weather' && s.temp_f != null
+  ? `${s.temp_f}°F${s.wind_mph != null ? ` · wind ${s.wind_mph} mph` : ''}`
+  : s.speed_kn ? `${Math.round(s.speed_kn * 1.15078)} mph ${dir(s.course || 0)}` : (s.comment || '');
+
+function marker(kind, x, y, rem, s) {
+  const k = KIND[kind] || KIND.other, r = 0.55 * rem;
+  if (k.shape === 'arrow') {
+    const a = (s.course || 0) * Math.PI / 180, p = (dx, dy) => [x + dx * Math.cos(a) - dy * Math.sin(a), y + dx * Math.sin(a) + dy * Math.cos(a)];
+    return `<polygon points="${[p(0, -1.6 * r), p(r, r), p(0, 0.4 * r), p(-r, r)].map(q => q.join(',')).join(' ')}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  }
+  if (k.shape === 'circle') return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  if (k.shape === 'diamond') return `<polygon points="${x},${y - 1.2 * r} ${x + 1.2 * r},${y} ${x},${y + 1.2 * r} ${x - 1.2 * r},${y}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  if (k.shape === 'square') return `<rect x="${x - 0.8 * r}" y="${y - 0.8 * r}" width="${1.6 * r}" height="${1.6 * r}" fill="none" stroke="${k.colour}" stroke-width="2"/>`;
+  return `<circle cx="${x}" cy="${y}" r="${0.5 * r}" fill="${k.colour}"/>`;
+}
+
+// Draw stations, trails and range rings over any projection.
+function overlay(svg, project, rem, labels) {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  let g = '';
+  const [hx, hy] = project(HOME[0], HOME[1]);
+  const [rx] = project(HOME[0], HOME[1] + 50 / (111.32 * Math.cos(HOME[0] * Math.PI / 180)));
+  const kmPx = (rx - hx) / 50;
+  for (const ringMi of [25, 50]) {
+    const r = ringMi * 1.609344 * kmPx;
+    g += `<circle cx="${hx}" cy="${hy}" r="${r}" fill="none" stroke="#3a4a5c" stroke-dasharray="4 5"/>` +
+         `<text x="${hx + 0.4 * rem}" y="${hy - r - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${ringMi} mi</text>`;
+  }
+  for (const s of stations) if (s.kind === 'mobile' && s.trail.length > 1)
+    g += `<polyline points="${s.trail.map(([la, lo]) => project(la, lo).join(',')).join(' ')}" fill="none" stroke="${KIND.mobile.colour}" stroke-width="2" opacity="0.6"/>`;
+  const order = ['home', 'other', 'digi', 'igate', 'object', 'weather', 'mobile'];
+  const placed = [];          // label boxes already drawn, so names never overlap
+  const free = b => placed.every(p => b[0] > p[2] || b[2] < p[0] || b[1] > p[3] || b[3] < p[1]);
+  for (const s of [...stations].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))) {
+    const [x, y] = project(s.lat, s.lon);
+    if (x < 0 || y < 0 || x > W || y > H) continue;
+    g += marker(s.kind, x, y, rem, s);
+  }
+  // Names last, most interesting first: mobiles, weather, objects. A name
+  // that would land on another is left off; the list beside it has them all.
+  if (labels) for (const s of [...stations].sort((a, b) => order.indexOf(b.kind) - order.indexOf(a.kind))) {
+    if (s.kind === 'home' || s.kind === 'other') continue;
+    const [x, y] = project(s.lat, s.lon), w = s.call.length * 0.62 * 1.2 * rem;
+    const box = [x + 0.8 * rem, y - 0.6 * rem, x + 0.8 * rem + w, y + 0.7 * rem];
+    if (box[2] > W || !free(box)) continue;
+    placed.push(box);
+    g += `<text x="${box[0]}" y="${y + 0.45 * rem}" fill="var(--text)" font-size="${1.2 * rem}" paint-order="stroke" stroke="#0b0e12" stroke-width="3">${s.call}</text>`;
+  }
+  g += `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="#0b0e12" stroke-width="2"/>`;
+  svg.innerHTML = g;
+}
+
+// D: Natural Earth 1:10m, from the basemap FlightBoard generates (nm from its home).
+function staticMap(box, labels) {
+  // Without FlightBoard's basemap in design/out, D shows its stations alone.
+  if (typeof BASEMAP === 'undefined') window.BASEMAP = { home: { lat: HOME[0], lon: HOME[1] }, land: [] };
+  const svg = box.querySelector('svg'), rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const W = svg.clientWidth, H = svg.clientHeight, k = Math.min(W, H) / 2 / RANGE_KM;
+  const cosl = Math.cos(HOME[0] * Math.PI / 180);
+  const project = (lat, lon) => [W / 2 + (lon - HOME[1]) * 111.32 * cosl * k, H / 2 - (lat - HOME[0]) * 110.57 * k];
+  const fb = BASEMAP.home, nmE = 1.852 * k, offX = (fb.lon - HOME[1]) * 111.32 * cosl * k, offY = -(fb.lat - HOME[0]) * 110.57 * k;
+  const path = r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${(W / 2 + offX + r[i] * nmE).toFixed(1)},${(H / 2 + offY - r[i + 1] * nmE).toFixed(1)}`; return d; };
+  // Each ring is its own shape: in one path, a clipped mainland ring that
+  // runs round Long Island would cut it out as a hole.
+  const base = BASEMAP.land.map(r => `<path d="${path(r)}Z" fill="#111b21" stroke="#1d3440"/>`).join('') +
+    (BASEMAP.lakes || []).map(r => `<path d="${path(r)}Z" fill="#060b0e"/>`).join('') +
+    `<path d="${(BASEMAP.states || []).map(path).join('')}" fill="none" stroke="#1a2a33" stroke-dasharray="4 3"/>`;
+  box.style.background = '#060b0e';
+  overlay(svg, project, rem, labels);
+  svg.insertAdjacentHTML('afterbegin', base);
+}
+
+// A, B: OpenFreeMap's Dark Matter, roads and boundaries off, as on FlightBoard.
+const LIVE_HIDE = ['highway_path', 'highway_minor', 'highway_major_casing', 'highway_major_inner', 'highway_major_subtle',
+  'highway_name_other', 'highway_motorway_casing', 'highway_motorway_inner', 'highway_motorway_subtle', 'highway_name_motorway',
+  'railway', 'railway_dashline', 'railway_minor', 'railway_minor_dashline', 'railway_transit', 'railway_transit_dashline',
+  'building', 'road_oneway', 'road_oneway_opposite', 'road_pier', 'road_area_pier', 'boundary_state', 'boundary_country_z0-4', 'boundary_country_z5-'];
+const LIVE_PAINT = { background: ['background-color', '#111b21'], water: ['fill-color', '#060b0e'], waterway: ['line-color', '#060b0e'],
+  landuse_residential: ['fill-color', '#111b21'], landuse_park: ['fill-color', '#162229'], landcover_wood: ['fill-color', '#162229'] };
+function liveMap(box, labels) {
+  return new Promise(resolve => {
+    const gl = box.querySelector('.gl'), svg = box.querySelector('svg');
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const half = Math.min(gl.clientWidth, gl.clientHeight) / 2;
+    const zoom = Math.log2(40075016.686 * Math.cos(HOME[0] * Math.PI / 180) / (512 * RANGE_KM * 1000 / half));
+    const map = new maplibregl.Map({ container: gl, style: 'https://tiles.openfreemap.org/styles/dark', center: [HOME[1], HOME[0]],
+      zoom, interactive: false, attributionControl: false, fadeDuration: 0 });
+    map.once('load', () => {
+      for (const layer of map.getStyle().layers) {
+        if (LIVE_HIDE.includes(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none');
+        else if (layer.id.startsWith('place_')) map.setPaintProperty(layer.id, 'text-opacity', 0.45);
+        else if (LIVE_PAINT[layer.id]) map.setPaintProperty(layer.id, ...LIVE_PAINT[layer.id]);
+      }
+      overlay(svg, (lat, lon) => { const p = map.project([lon, lat]); return [p.x, p.y]; }, rem, labels);
+      map.once('idle', resolve);
+    });
+  });
+}
+
+const legend = () => `<div class="legend">` + ['mobile', 'weather', 'object', 'digi', 'home'].map(k => {
+  const n = stations.filter(s => KIND[s.kind].name === KIND[k].name).length;
+  return `<span><svg width="16" height="16" style="vertical-align:-3px">${marker(k, 8, 8, 9, { course: 0 })}</svg> ${KIND[k].name} ${n}</span>`;
+}).join('') + `<span>· last ${A.window_min} min · ${mi(RANGE_KM)} mi round</span></div>`;
+const row = s => `<div class="st"><svg width="18" height="18">${marker(s.kind, 9, 9, 9, s)}</svg><span class="call mono">${s.call}</span>
+  <span class="d">${mi(s.km)} mi ${dir(s.bearing)}</span><span class="sub">${ago(s)} · ${what(s)}</span></div>`;
+const MAPCREDIT = '<div class="credit-map">© OpenMapTiles © OpenStreetMap contributors</div>';
+
+const variants = {
+  A: () => `<div class="split"><div class="mapbox" data-map="live"><div class="gl"></div><svg></svg>${MAPCREDIT}</div>
+    <div class="list" data-total="${stations.length}">${stations.slice(0, 20).map(row).join('')}</div></div>` + legend(),
+  B: () => `<div class="mapbox" data-map="live" data-labels="1" style="flex:1"><div class="gl"></div><svg></svg>${MAPCREDIT}</div>` + legend(),
+  C: () => `<div class="groups">` + [['mobile'], ['weather'], ['object'], ['digi', 'igate']].map(kinds => {
+    const list = stations.filter(s => kinds.includes(s.kind)).sort((a, b) => a.km - b.km);
+    return `<div class="group"><h3>${KIND[kinds[0]].name} <span>${list.length}</span></h3><div class="list" data-total="${list.length}">${list.map(row).join('')}</div></div>`;
+  }).join('') + `</div>` + legend(),
+  D: () => `<div class="split"><div class="mapbox" data-map="static"><svg></svg></div>
+    <div class="list" data-total="${stations.length}">${stations.slice(0, 20).map(row).join('')}</div></div>` + legend(),
+};
+
+(async () => {
+  const lib = document.createElement('script');
+  lib.src = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+  const css = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css' });
+  document.head.append(css, lib);
+  await new Promise(r => lib.onload = r);
+  const out = document.getElementById('out');
+  for (const [k, body] of Object.entries(variants)) {
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = `<div class="label">${k}</div>` + ['tv', 'ipad'].map(size =>
+      `<div><div class="box ${size}" id="${k}-${size}"><section class="panel feature">
+         <h2>APRS · ${stations.length} stations within ${mi(RANGE_KM)} mi</h2><div class="feature-body">${body()}</div></section></div>
+       <div class="measure" id="m-${k}-${size}"></div></div>`).join('');
+    out.appendChild(el);
+  }
+  const maps = [];
+  for (const box of document.querySelectorAll('.mapbox')) {
+    if (box.dataset.map === 'static') staticMap(box, !!box.dataset.labels);
+    else maps.push(liveMap(box, !!box.dataset.labels));
+  }
+  await Promise.all(maps);
+  for (const col of document.querySelectorAll('.list')) {
+    const items = [...col.children], bottom = () => col.getBoundingClientRect().bottom;
+    while (items.length && items[items.length - 1].getBoundingClientRect().bottom > bottom()) items.pop().remove();
+    if (+col.dataset.total > items.length) {
+      const more = Object.assign(document.createElement('div'), { className: 'more' });
+      col.appendChild(more);
+      while (items.length && more.getBoundingClientRect().bottom > bottom()) items.pop().remove();
+      more.textContent = `+${col.dataset.total - items.length} more`;
+    }
+  }
+  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  for (const box of document.querySelectorAll('.box')) {
+    const body = box.querySelector('.feature-body'), br = body.getBoundingClientRect();
+    let min = Infinity, outside = 0;
+    for (const el of body.querySelectorAll('*')) {
+      if (el.closest('.gl')) continue;
+      if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+        min = Math.min(min, parseFloat(el.getAttribute('font-size') || getComputedStyle(el).fontSize));
+      const r = el.getBoundingClientRect();
+      if (r.height && !el.closest('svg') && (r.bottom > br.bottom + 1 || r.right > br.right + 1)) outside++;
+    }
+    const shown = box.querySelectorAll('.st').length;
+    document.getElementById('m-' + box.id).textContent =
+      `${box.id}: min ${(min / remPx).toFixed(2)}rem, ${outside ? outside + ' outside' : 'fits'}, ${shown} listed`;
+  }
+  document.body.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>

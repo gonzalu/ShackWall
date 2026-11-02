@@ -10,7 +10,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import config, fetch, sun
-from .sources import hamqsl, nws, pota, pskreporter, satellites, swpc
+from .sources import aprsis, hamqsl, nws, pota, pskreporter, satellites, swpc
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("shackwall")
@@ -22,7 +22,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # Each runs in its own loop on its own schedule, so a slow or broken provider
 # never holds up the others, and the API only ever reads what they last stored.
 SOURCES = {"spaceweather": swpc, "bands": hamqsl, "weather": nws,
-           "satellites": satellites, "pota": pota, "psk": pskreporter}
+           "satellites": satellites, "pota": pota, "psk": pskreporter,
+           "aprs": aprsis}
 
 
 async def _loop(name, source):

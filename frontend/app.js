@@ -345,8 +345,152 @@ function worldMap(box, points, nowMs) {
   svg.innerHTML = g;
 }
 
+// APRS station kinds. Three colour slots go to the kinds worth finding at a
+// glance; the rest are grey. Every kind has its own shape too, so colour is
+// never the only way to tell them apart.
+const APRS_KIND = {
+  mobile: { colour: SERIES[0], name: 'Mobiles', shape: 'arrow' },
+  weather: { colour: SERIES[1], name: 'Weather', shape: 'circle' },
+  object: { colour: SERIES[2], name: 'Objects', shape: 'diamond' },
+  digi: { colour: '#8b98a5', name: 'Digis and iGates', shape: 'square' },
+  igate: { colour: '#8b98a5', name: 'Digis and iGates', shape: 'square' },
+  home: { colour: '#8b98a5', name: 'Fixed', shape: 'dot' },
+  other: { colour: '#8b98a5', name: 'Fixed', shape: 'dot' },
+};
+
+function aprsMarker(kind, x, y, r, course = 0) {
+  const k = APRS_KIND[kind] || APRS_KIND.other;
+  if (k.shape === 'arrow') {          // pointing the way the station is heading
+    const a = course * Math.PI / 180;
+    const p = (dx, dy) => `${x + dx * Math.cos(a) - dy * Math.sin(a)},${y + dx * Math.sin(a) + dy * Math.cos(a)}`;
+    return `<polygon points="${p(0, -1.6 * r)} ${p(r, r)} ${p(0, 0.4 * r)} ${p(-r, r)}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  }
+  if (k.shape === 'circle') return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  if (k.shape === 'diamond') return `<polygon points="${x},${y - 1.2 * r} ${x + 1.2 * r},${y} ${x},${y + 1.2 * r} ${x - 1.2 * r},${y}" fill="${k.colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
+  if (k.shape === 'square') return `<rect x="${x - 0.8 * r}" y="${y - 0.8 * r}" width="${1.6 * r}" height="${1.6 * r}" fill="none" stroke="${k.colour}" stroke-width="2"/>`;
+  return `<circle cx="${x}" cy="${y}" r="${0.5 * r}" fill="${k.colour}"/>`;
+}
+
+/* The APRS map: OpenStreetMap from OpenFreeMap in the Dark Matter style,
+ * drawn by MapLibre - the same map, library and settings as FlightBoard's
+ * dashboard. Roads, railways and boundaries are switched off and the names
+ * dimmed, so the stations stay the brightest thing on it. The browser showing
+ * the page fetches the tiles; OpenFreeMap asks for no key and sets no limits.
+ * ?map=static, or anything failing to load, leaves a plain dark background
+ * with the stations at their true distance and bearing.
+ *
+ * The map is made once and kept: the page is rebuilt every poll, and the map
+ * is moved into the new page rather than made again. */
+const LIVE_MAP = new URLSearchParams(location.search).get('map') !== 'static';
+const LIVE_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+const LIVE_LIB_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+const LIVE_LIB_JS_SRI = 'sha384-/L1njH4bbgNt9Uk3HwJ272N9fxJzRBQCxhtwGkZiqgl+Nxpq2ETUNZhNMNV1RgyW';
+const LIVE_LIB_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css';
+const LIVE_LIB_CSS_SRI = 'sha384-Nq6PQ+9vJPvw7U/VfDELyrWoGQMsy0gi6QShhaSrGzkpF5KkM40csg2leky+YMTd';
+const LIVE_HIDE = [
+  'highway_path', 'highway_minor', 'highway_major_casing', 'highway_major_inner',
+  'highway_major_subtle', 'highway_name_other', 'highway_motorway_casing',
+  'highway_motorway_inner', 'highway_motorway_subtle', 'highway_name_motorway',
+  'railway', 'railway_dashline', 'railway_minor', 'railway_minor_dashline',
+  'railway_transit', 'railway_transit_dashline', 'building', 'road_oneway',
+  'road_oneway_opposite', 'road_pier', 'road_area_pier',
+  'boundary_state', 'boundary_country_z0-4', 'boundary_country_z5-',
+];
+const LIVE_PAINT = {
+  background: ['background-color', '#111b21'],
+  water: ['fill-color', '#060b0e'],
+  waterway: ['line-color', '#060b0e'],
+  landuse_residential: ['fill-color', '#111b21'],
+  landuse_park: ['fill-color', '#162229'],
+  landcover_wood: ['fill-color', '#162229'],
+};
+const aprsMap = { div: null, map: null, ready: false, failed: !LIVE_MAP };
+
+function loadAsset(tag, attrs) {
+  return new Promise((resolve, reject) => {
+    const el = Object.assign(document.createElement(tag), attrs);
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('could not load ' + (attrs.src || attrs.href)));
+    document.head.appendChild(el);
+  });
+}
+
+async function startAprsMap(onReady) {
+  aprsMap.div = Object.assign(document.createElement('div'), { className: 'gl' });
+  try {
+    await Promise.all([
+      loadAsset('link', { rel: 'stylesheet', href: LIVE_LIB_CSS, integrity: LIVE_LIB_CSS_SRI, crossOrigin: 'anonymous' }),
+      loadAsset('script', { src: LIVE_LIB_JS, integrity: LIVE_LIB_JS_SRI, crossOrigin: 'anonymous' }),
+    ]);
+    const map = new maplibregl.Map({
+      container: aprsMap.div, style: LIVE_STYLE, center: [state.station.lon, state.station.lat],
+      zoom: 8, interactive: false, attributionControl: false, fadeDuration: 0,
+    });
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('the map did not load')), 30000);
+      map.once('load', () => { clearTimeout(timer); resolve(); });
+      map.once('error', e => { clearTimeout(timer); reject(new Error(e?.error?.message || 'tiles unavailable')); });
+    });
+    for (const layer of map.getStyle().layers) {
+      if (LIVE_HIDE.includes(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none');
+      else if (layer.id.startsWith('place_')) map.setPaintProperty(layer.id, 'text-opacity', 0.45);
+      else if (LIVE_PAINT[layer.id]) map.setPaintProperty(layer.id, ...LIVE_PAINT[layer.id]);
+    }
+    aprsMap.map = map;
+    aprsMap.ready = true;
+  } catch (e) {
+    console.warn('live map unavailable, drawing stations on a plain background:', e.message);
+    aprsMap.failed = true;
+  }
+  onReady();
+}
+
+function drawAprs(box, a) {
+  const svg = box.querySelector('svg');
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if (!W || !H) return;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const home = [state.station.lat, state.station.lon];
+  const rangeKm = a.range_km || 100;
+  const kmPerLon = 111.32 * Math.cos(home[0] * Math.PI / 180);
+  let project;
+  if (aprsMap.ready) {
+    if (aprsMap.div.parentNode !== box) box.prepend(aprsMap.div);
+    const map = aprsMap.map;
+    map.resize();
+    // Fit the filter's range to the shorter side of the box.
+    const metresPerPixel = rangeKm * 1000 / (Math.min(W, H) / 2);
+    map.jumpTo({ center: [home[1], home[0]],
+      zoom: Math.log2(40075016.686 * Math.cos(home[0] * Math.PI / 180) / (512 * metresPerPixel)) });
+    project = (lat, lon) => { const p = map.project([lon, lat]); return [p.x, p.y]; };
+  } else {
+    const k = Math.min(W, H) / 2 / rangeKm;
+    project = (lat, lon) => [W / 2 + (lon - home[1]) * kmPerLon * k, H / 2 - (lat - home[0]) * 110.57 * k];
+  }
+  const [hx, hy] = project(home[0], home[1]);
+  const kmPx = (project(home[0], home[1] + 50 / kmPerLon)[0] - hx) / 50;
+  let g = '';
+  for (const ringMi of [25, 50]) {
+    const rr = ringMi * KM_PER_MI * kmPx;
+    g += `<circle cx="${hx}" cy="${hy}" r="${rr}" fill="none" stroke="#3a4a5c" stroke-dasharray="4 5"/>` +
+         `<text x="${hx + 0.4 * rem}" y="${hy - rr - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${ringMi} mi</text>`;
+  }
+  for (const s of a.stations) if (s.kind === 'mobile' && s.trail.length > 1)
+    g += `<polyline points="${s.trail.map(([la, lo]) => project(la, lo).join(',')).join(' ')}" fill="none" stroke="${APRS_KIND.mobile.colour}" stroke-width="2" opacity="0.6"/>`;
+  // Busy kinds first, so the ones worth finding are drawn on top.
+  const order = ['home', 'other', 'digi', 'igate', 'object', 'weather', 'mobile'];
+  for (const s of [...a.stations].sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind))) {
+    const [x, y] = project(s.lat, s.lon);
+    if (x >= 0 && y >= 0 && x <= W && y <= H) g += aprsMarker(s.kind, x, y, 0.55 * rem, s.course || 0);
+  }
+  g += `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="#0b0e12" stroke-width="2"/>`;
+  svg.innerHTML = g;
+  box.querySelector('.mapcredit').hidden = !aprsMap.ready;
+}
+
 // Keep as many rows as fit in a list, then say how many more there are.
 function fitList(list, total) {
+  list.querySelector('.more')?.remove();     // from an earlier fit of this list
   const rows = [...list.children];
   const bottom = () => list.getBoundingClientRect().bottom;
   while (rows.length && rows[rows.length - 1].getBoundingClientRect().bottom > bottom()) rows.pop().remove();
@@ -457,6 +601,38 @@ const PAGES = [
       p.bands.map(b => `<div><b>${b.band}</b><div class="n">${b.out} / ${b.in}</div><div class="far">${far([b.far_out, b.far_in].filter(Boolean).sort((x, y) => y.km - x.km)[0])}</div></div>`).join('') +
       `</div></div>`;
     return { title, body, credit, draw: el => worldMap(el.querySelector('.mapbox'), p.points || [], now().getTime()) };
+  },
+  function aprs() {
+    const a = state.aprs, nowMs = now().getTime();
+    const stations = a.stations || [];
+    const rangeMi = Math.round((a.range_km || 100) / KM_PER_MI);
+    const title = `APRS · ${stations.length} stations within ${rangeMi} mi`;
+    const credit = 'Stations: APRS-IS';
+    if (!stations.length) return { title, credit, body: '<div class="empty">Listening for APRS stations nearby…</div>' };
+    const mi = km => km < 10 ? (km / KM_PER_MI).toFixed(1) : Math.round(km / KM_PER_MI);
+    const ago = s => `${Math.max(0, Math.round((nowMs / 1000 - s.heard) / 60))} min`;
+    const what = s => s.kind === 'weather' && s.temp_f != null
+      ? `${s.temp_f}°F${s.wind_mph != null ? ` · wind ${s.wind_mph} mph` : ''}`
+      : s.speed_kn ? `${Math.round(s.speed_kn * 1.15078)} mph ${dir8(s.course || 0)}` : (s.comment || '');
+    const counts = {};
+    for (const s of stations) {
+      const n = (APRS_KIND[s.kind] || APRS_KIND.other).name;
+      counts[n] = (counts[n] || 0) + 1;
+    }
+    const legend = ['mobile', 'weather', 'object', 'digi', 'home'].map(k =>
+      `<span><svg viewBox="0 0 16 16">${aprsMarker(k, 8, 8, 5)}</svg> ${APRS_KIND[k].name} ${counts[APRS_KIND[k].name] || 0}</span>`).join('');
+    const body = `<div class="aprs"><div class="aprsgrid">
+        <div class="mapbox aprsmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
+        <div class="spots">` + stations.slice(0, 25).map(s => `<div class="station">
+          <svg viewBox="0 0 18 18">${aprsMarker(s.kind, 9, 9, 5, s.course || 0)}</svg><span class="call mono">${s.call}</span>
+          <span class="d">${mi(s.km)} mi ${dir8(s.bearing)}</span><span class="sub">${[ago(s), what(s)].filter(Boolean).join(' · ')}</span></div>`).join('') +
+      `</div></div><div class="legend">${legend}<span>· last ${a.window_min} min</span></div></div>`;
+    const draw = el => {
+      if (!aprsMap.div && !aprsMap.failed) startAprsMap(renderFeature);
+      drawAprs(el.querySelector('.aprsmap'), a);
+      fitList(el.querySelector('.spots'), stations.length);
+    };
+    return { title, body, credit, draw };
   },
   function alerts() {
     const list = state.spaceweather.alerts || [];

@@ -113,6 +113,14 @@ SATELLITES = [int(n) for n in re.findall(r"\d+", _get("SATELLITES")
 # Passes that never climb above this many degrees are left out.
 SAT_MIN_ELEVATION = _float("SAT_MIN_ELEVATION", 10)
 
+# APRS: a receive-only APRS-IS connection. The login must be unique across
+# APRS, so it is your callsign with an SSID none of your radios uses.
+# APRS_SERVER is a rotating address that picks a nearby server in your region:
+# noam (North America), euro, asia, aunz or soam, or rotate for anywhere.
+APRS_LOGIN = (_get("APRS_LOGIN") or (f"{CALLSIGN}-SW" if CALLSIGN else "")).upper()
+APRS_SERVER = _get("APRS_SERVER") or "rotate.aprs2.net"
+APRS_RANGE_KM = _float("APRS_RANGE_KM", 100)
+
 # Sent in every request's User-Agent, so a data provider who sees a problem
 # can write to you instead of blocking you.
 CONTACT_EMAIL = _get("CONTACT_EMAIL")

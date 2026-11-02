@@ -7,14 +7,14 @@ to, or a Raspberry Pi plugged into a monitor.
 
 > **Status: early.** The page layout, clocks, live space weather from NOAA, HF
 > band conditions from HAMQSL, US weather with antenna warnings from the
-> National Weather Service, amateur satellite passes, POTA spots and
-> PSKReporter band activity work. APRS, aircraft and ships are still to come.
+> National Weather Service, amateur satellite passes, POTA spots, PSKReporter
+> band activity and APRS work. Aircraft and ships are still to come.
 
 ## What it looks like
 
 On a 1080p TV: the column on the left stays put, and the big panel takes
-turns between the forecast, satellite passes, POTA spots, band activity and
-space weather alerts.
+turns between the forecast, satellite passes, POTA spots, band activity, APRS
+and space weather alerts.
 
 ![The forecast page: 48 hours of temperature, wind against the antenna limit, and rain and thunder chances](img/forecast.png)
 
@@ -24,6 +24,8 @@ space weather alerts.
 | Satellite passes | POTA spots |
 | ![Band activity: PSKReporter reports to and from the grid square on a world map with night shaded](img/band-activity.png) | ![On an iPad the fixed panels move across the top](img/ipad.png) |
 | Band activity from PSKReporter | On an iPad |
+
+![APRS stations on a live map round the station, beside the newest ones heard](img/aprs.jpg)
 
 ## Install
 
@@ -121,8 +123,21 @@ The large panel takes turns between these pages:
   Night is shaded, and its soft edge is the gray line. Under the map, each
   band's counts and its farthest station. It shows where the bands are open
   from your area whether or not your own rig is on.
+- **APRS:** every station heard within `APRS_RANGE_KM` (100 km by default) in
+  the last hour, on a live map beside the newest ones. Mobiles are blue arrows
+  pointing the way they are going, with a trail; weather stations are orange
+  dots; objects such as repeaters and nets are green diamonds; digipeaters
+  and iGates are grey squares. The map is OpenStreetMap from OpenFreeMap, as
+  on FlightBoard's dashboard, fetched by the browser showing the page. Add
+  `?map=static` to the page's address to keep a screen from fetching any map:
+  the stations are then drawn on a plain background.
 - **Space weather alerts:** NOAA's alerts, warnings and watches from the last
   24 hours.
+
+ShackWall connects to APRS-IS receive-only, as your callsign with `-SW` after
+it and passcode -1, the way APRS-IS documents for clients that never
+transmit; you don't need a passcode. Set `APRS_SERVER` to your region's
+server (see `shackwall.env.example`).
 
 Passes are worked out on the backend from the orbits, for the ISS, SO-50,
 AO-27, AO-123, RS-44, AO-7, FO-29, JO-97, AO-73 and AO-91 unless you list
@@ -167,7 +182,8 @@ in every request and caches politely.
 | POTA spots | [Parks on the Air](https://pota.app/) | No published API terms; read every 2 minutes, one client for all screens; no POTA logo |
 | Reception reports | [PSKReporter](https://pskreporter.info/), via [mqtt.pskreporter.info](https://www.mqtt.pskreporter.info/) by Tom M0LTE | Live feed, no account or polling; one connection subscribed to your grid square only |
 | Weather and alerts | [US National Weather Service](https://www.weather.gov/documentation/services-web-api) | Open data, free for any use; each product fetched only as often as its Cache-Control says it changes |
-| APRS stations | [APRS-IS](https://www.aprs-is.net/) | Filtered, receive-only connection |
+| APRS stations | [APRS-IS](https://www.aprs-is.net/) | One receive-only connection, filtered on the server to your range; not aprs.fi, whose terms only allow fetching while someone is looking |
+| APRS map | [OpenFreeMap](https://openfreemap.org/), OpenStreetMap data | No key or limits; © OpenMapTiles © OpenStreetMap contributors, shown on the map |
 | Aircraft | Your own ADS-B receiver, through [FlightBoard](https://github.com/gonzalu/FlightBoard) | Your data |
 | Ships | [aisstream.io](https://aisstream.io/) | Free key; server-side only |
 | World map | [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, as [world-atlas](https://github.com/topojson/world-atlas) TopoJSON | Public domain; world-atlas is ISC |
