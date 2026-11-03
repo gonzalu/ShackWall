@@ -699,6 +699,8 @@ const PAGES = [
     const credit = 'Reports: PSKReporter, via mqtt.pskreporter.info (M0LTE) · Map: Natural Earth';
     if (!p.bands?.length) return { title, credit, body: `<div class="empty">Listening for reports to and from ${sq || 'your grid square'}…</div>` };
     const mi = km => Math.round(km / KM_PER_MI).toLocaleString();
+    // 1,695 reports fit a narrow column as 1.7k.
+    const count = n => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n;
     // The farthest station either way. The feed names it and its square,
     // not its country.
     const far = f => f ? `${f.call} ${mi(f.km)} mi` : '—';
@@ -706,7 +708,7 @@ const PAGES = [
       <div class="legend"><span><i style="background:${SERIES[0]}"></i>${sq} heard there</span>
         <span><i style="background:${SERIES[1]}"></i>Heard in ${sq}</span><span>Shaded: night · last ${p.window_min} min</span></div>
       <div class="bandrow" style="grid-template-columns:repeat(${p.bands.length},1fr)">` +
-      p.bands.map(b => `<div><b>${b.band}</b><div class="n">${b.out} / ${b.in}</div><div class="far">${far([b.far_out, b.far_in].filter(Boolean).sort((x, y) => y.km - x.km)[0])}</div></div>`).join('') +
+      p.bands.map(b => `<div><b>${b.band}</b><div class="n">${count(b.out)} / ${count(b.in)}</div><div class="far">${far([b.far_out, b.far_in].filter(Boolean).sort((x, y) => y.km - x.km)[0])}</div></div>`).join('') +
       `</div></div>`;
     return { title, body, credit, draw: el => worldMap(el.querySelector('.mapbox'), p.points || [], now().getTime()) };
   },
@@ -835,14 +837,54 @@ function renderFeature() {
     : '';
 }
 
-function nextPage() { page = (page + 1) % activePages().length; renderFeature(); schedulePoll(); }
+function showPage(n) {
+  const count = activePages().length;
+  page = ((n % count) + count) % count;
+  renderFeature();
+  schedulePoll();
+}
+function nextPage() { showPage(page + 1); }
 
 let pageTimer = setInterval(nextPage, PAGE_MS);
-// On a touch screen a tap moves on, and the rotation restarts from there.
-$('feature').addEventListener('click', () => {
+
+// Going to a page by hand restarts the rotation from there, so the page you
+// chose gets its full 20 seconds.
+function goTo(n) {
   clearInterval(pageTimer);
-  nextPage();
+  showPage(n);
   pageTimer = setInterval(nextPage, PAGE_MS);
+}
+
+/* Moving between pages by hand:
+ *   touch   swipe left for the next page, right for the previous; a tap
+ *           moves on, as before
+ *   mouse   left click for the previous page, right click for the next
+ *   keys    the left and right arrows, Page Up and Page Down
+ *   dots    a tap or click on a dot under the panel jumps to that page */
+const SWIPE_PX = 40;
+let pressed = null;
+$('feature').addEventListener('pointerdown', e => { pressed = { x: e.clientX, y: e.clientY, type: e.pointerType, button: e.button }; });
+$('feature').addEventListener('pointerup', e => {
+  if (!pressed) return;
+  const dx = e.clientX - pressed.x, dy = e.clientY - pressed.y, { type, button } = pressed;
+  pressed = null;
+  if (type === 'mouse') {
+    if (button === 0) goTo(page - 1);         // the right button is the menu event below
+    return;
+  }
+  if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) goTo(dx < 0 ? page + 1 : page - 1);
+  else if (Math.hypot(dx, dy) < SWIPE_PX) goTo(page + 1);    // a tap
+});
+$('feature').addEventListener('pointercancel', () => { pressed = null; });
+// The right mouse button: next page instead of the browser's menu.
+$('feature').addEventListener('contextmenu', e => { e.preventDefault(); goTo(page + 1); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') goTo(page + 1);
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') goTo(page - 1);
+});
+$('dots').addEventListener('click', e => {
+  const i = [...$('dots').children].indexOf(e.target);
+  if (i >= 0) goTo(i);
 });
 
 async function poll() {

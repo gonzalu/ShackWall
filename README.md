@@ -86,8 +86,20 @@ Screens that are already open reload themselves when the page files change.
 
 A column on the left always shows the numbers you check at a glance: space
 weather, band conditions and local weather. The large panel on the right cycles
-through one subject at a time every 20 seconds. On a touch screen, tap it to
-move on. On a squarer screen like an iPad, the column moves across the top.
+through one subject at a time every 20 seconds. On a squarer screen like an
+iPad, the column moves across the top.
+
+To change page yourself:
+
+| On | Next page | Previous page |
+|---|---|---|
+| A touch screen | swipe left, or tap | swipe right |
+| A computer | right-click the big panel | left-click the big panel |
+| A keyboard | → or Page Down | ← or Page Up |
+
+Tapping or clicking a dot under the panel jumps straight to that page. The
+page you choose stays up for its full 20 seconds before the rotation carries
+on from there.
 
 The HF bands panel shows N0NBH's Good / Fair / Poor call for each pair of
 bands, by day and by night. The half of the day it is at your station is
