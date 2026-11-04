@@ -292,14 +292,41 @@ function spotMap(svg, home, spots) {
     g += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-dasharray="3 4"/>` +
          `<text x="${cx + 0.4 * rem}" y="${cy - r - 0.3 * rem}" fill="var(--dim)" font-size="${1.2 * rem}">${m.toLocaleString()} mi</text>`;
   }
+  const items = [];
   for (const s of spots) {
     let [x, y, km] = azimuthal(home, s.lat, s.lon);
     const far = km > maxKm;
     if (far) { x *= maxKm / km; y *= maxKm / km; }
     g += `<circle cx="${cx + x * k}" cy="${cy + y * k}" r="${(far ? 0.5 : 0.7) * rem}" fill="${far ? 'var(--dim)' : SERIES[0]}" stroke="var(--panel)" stroke-width="1.5"/>`;
+    items.push({ x: cx + x * k, y: cy + y * k, id: potaId(s), name: s.activator,
+      sub: `${s.reference} · ${potaFreq(s)} ${s.mode}` });
   }
   g += `<circle cx="${cx}" cy="${cy}" r="${0.6 * rem}" fill="var(--text)"/>`;
   svg.innerHTML = g;
+  hits = { box: svg.parentElement, rem, items };
+  drawChosen(id => potaDetails(spots.find(s => potaId(s) === id)));
+}
+
+// An activator can be in two parks at once, or spotted twice; both ends name the spot.
+const potaId = s => encodeURIComponent(`${s.activator} ${s.reference}`);
+const potaFreq = s => s.khz.toFixed(1).replace(/\.0$/, '');
+
+// What a POTA spot's card says.
+function potaDetails(s) {
+  const age = Math.max(0, Math.round(state.server_time - new Date(s.time).getTime() / 1000));
+  // A spotter ending -# is a Reverse Beacon Network skimmer, not a person.
+  const by = s.spotter?.endsWith('-#') ? `${s.spotter.slice(0, -2)} skimmer` : s.spotter;
+  return {
+    name: s.activator,
+    sub: [s.reference, s.location].filter(Boolean).join(' · '),
+    big: `${(s.khz / 1000).toFixed(3)} MHz <span>${[s.mode, s.band].filter(Boolean).join('&nbsp;·&nbsp;')}</span>`,
+    rows: [s.park && ['Park', s.park, true],
+           s.km != null && ['From you', `${Math.round(s.km / KM_PER_MI).toLocaleString()} mi ${dir8(s.bearing)} · beam ${s.bearing}°`],
+           s.grid && ['Grid', s.grid],
+           s.comments && ['Spot says', s.comments, true],
+           ['Spotted', `${s.spots || 1} time${s.spots === 1 ? '' : 's'}`], by && ['Last by', by],
+           ['Last spot', age < 90 ? `${age} s ago` : ago(age)]].filter(Boolean),
+  };
 }
 
 // The sun's elevation, from the same NOAA equations as the backend's sun.py.
@@ -911,11 +938,10 @@ const PAGES = [
     const credit = 'Spots: Parks on the Air · Map: Natural Earth';
     if (!spots.length) return { title, credit, body: '<div class="empty">No POTA activators spotted right now.</div>' };
     const mi = km => Math.round(km / KM_PER_MI);
-    const freq = s => s.khz.toFixed(1).replace(/\.0$/, '');
     const ago = s => `${Math.max(0, Math.round((nowMs - new Date(s.time)) / 60000))} min ago`;
     const placed = spots.filter(s => s.km != null);
-    const body = `<div class="pota"><svg class="spotmap"></svg><div class="spots">` +
-      spots.slice(0, 20).map(s => `<div class="spot"><span class="call mono">${s.activator}</span><span class="f">${freq(s)} ${s.mode}</span>
+    const body = `<div class="pota"><div class="spotbox"><svg class="spotmap"></svg></div><div class="spots">` +
+      spots.slice(0, 20).map(s => `<div class="spot" data-id="${potaId(s)}"><span class="call mono">${s.activator}</span><span class="f">${potaFreq(s)} ${s.mode}</span>
         <span class="sub"><span class="mono">${s.reference}</span> ${s.park || ''}</span>
         <span class="d">${s.km != null ? `${mi(s.km)} mi ${dir8(s.bearing)}` : ''} · ${ago(s)}</span></div>`).join('') +
       `</div></div>`;

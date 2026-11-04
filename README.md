@@ -129,6 +129,13 @@ your square was heard on there and the stations that heard it, the bands
 that square was heard on in yours and the stations heard, the modes, the best
 signal report and when the last one came in.
 
+On the POTA page, tap or click a spot on the map, or its row in the list: the
+activator, the park and its reference, the frequency, mode and band, how far
+away it is with the beam heading to turn your antenna to, its grid square,
+what the spot's comment says, how many times it has been spotted and by whom
+(a Reverse Beacon Network skimmer is named as one), and when the last spot
+came in.
+
 The card keeps up to date while it's open. Where several sit under your
 finger, as at a busy pier, over an airport, round a city's digipeaters or
 across Europe on the world map, the card lists the nearest six so you can pick

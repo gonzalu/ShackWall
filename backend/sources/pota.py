@@ -73,6 +73,7 @@ def parse(spots):
             "grid": s.get("grid6") or s.get("grid4"),
             "time": datetime.fromisoformat(s["spotTime"]).replace(tzinfo=timezone.utc).isoformat(),
             "spots": s.get("count"),
+            "spotter": s.get("spotter"),
             "comments": s.get("comments") or "",
             # An activator signing off says QRT; the spot stays up until it expires.
             "qrt": "QRT" in (s.get("comments") or "").upper(),
