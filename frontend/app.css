@@ -129,12 +129,12 @@ aside { display: grid; gap: 1rem; grid-template-rows: 1.3fr 1fr 0.8fr; min-heigh
            color: var(--dim); }
 /* A long name takes a second line rather than losing its end. */
 .card .nm { font-size: 2rem; font-weight: 700; line-height: 1.15; padding-right: 2rem; overflow-wrap: anywhere; }
-.card .kd { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .big { font-size: 2rem; font-weight: 600; white-space: nowrap; }
+.card .kd { font-size: 1.3rem; color: var(--dim); overflow-wrap: anywhere; }
+.card .big { font-size: 2rem; font-weight: 600; }
 .card .big span { font-size: 1.4rem; color: var(--dim); font-weight: 400; }
 .card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1.2rem; align-items: baseline; }
 .card dt { font-size: 1.2rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
-.card dd { font-size: 1.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card dd { font-size: 1.5rem; overflow-wrap: anywhere; }
 .card .pick { border-top: 1px solid var(--line); padding-top: 0.5rem; }
 .card .pick .nm { font-size: 1.7rem; }
 .alerts { list-style: none; display: flex; flex-direction: column; gap: 1rem; }
@@ -211,6 +211,7 @@ aside { display: grid; gap: 1rem; grid-template-rows: 1.3fr 1fr 0.8fr; min-heigh
 .plane .alt { font-size: 1.6rem; text-align: right; white-space: nowrap; }
 .plane .sub { font-size: 1.3rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plane .d { font-size: 1.3rem; color: var(--dim); text-align: right; white-space: nowrap; }
+.plane.chosen { box-shadow: inset 0.3rem 0 0 var(--accent); padding-left: 0.8rem; }
 .legend { flex-wrap: wrap; }
 .streetmap.ships { flex: 1; min-height: 0; }
 .legend svg { width: 1.4rem; height: 1.4rem; vertical-align: -0.25rem; }

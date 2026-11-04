@@ -102,14 +102,23 @@ while your finger or mouse is on it. Tapping or clicking a dot under the panel
 jumps straight to that page. The page you choose stays up for its full 20
 seconds before the rotation carries on from there.
 
-### More about one ship
+### More about one ship or plane
 
 On the ships page, tap or click a ship for a card beside it: what kind of
 ship it is and how long, its speed and heading or whether it's moored, where
 its crew says it's going, how far it is from you, its call sign and MMSI, and
-when it was last heard. The card keeps up to date while it's open. Where
-several ships sit under your finger, as at a busy pier, the card lists them so
-you can pick one.
+when it was last heard.
+
+On the aircraft page, tap or click a plane, or its row in the list beside the
+map: its flight, airline and type, its height, speed and heading, where it's
+flying from and to, whether it's climbing or descending, how far it is from
+you, its tail number, its squawk code (7500, 7600 and 7700 are named, since
+those are the codes a pilot sets when something is wrong) and its ICAO
+address. The row of the plane you picked is marked in the list.
+
+The card keeps up to date while it's open. Where several sit under your
+finger, as at a busy pier or over an airport, the card lists them so you can
+pick one.
 
 While a card is open the pages stop cycling. Tap empty map, the card's ×, or
 press Esc to close it; changing page closes it too. A card left alone closes

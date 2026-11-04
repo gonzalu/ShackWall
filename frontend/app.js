@@ -538,17 +538,55 @@ function aircraftRangeKm(planes) {
   return Math.max(20, Math.ceil((d[Math.floor(d.length * 0.9)] || 20) / 10) * 10);
 }
 
+const planeName = p => p.flight || p.registration || p.hex.toUpperCase();
+const miles = km => km < 10 ? (km / KM_PER_MI).toFixed(1) : Math.round(km / KM_PER_MI);
+// Flight levels from 18,000 ft, where US altimeters switch to standard pressure.
+function planeAlt(p) {
+  if (p.on_ground) return 'ground';
+  const h = Math.round(p.alt_baro / 100);
+  return h >= 180 ? `FL${h}` : `${(h * 100).toLocaleString()} ft`;
+}
+const planeClimb = p => p.baro_rate > 300 ? ' ↑' : p.baro_rate < -300 ? ' ↓' : '';
+// The three codes a pilot sets to say something is wrong.
+const SQUAWK = { 7500: 'hijack', 7600: 'radio failure', 7700: 'emergency' };
+
+// What a plane's card says about it.
+function planeDetails(p) {
+  const airport = (code, city) => code ? [code, city?.replace(/\/$/, '')].filter(Boolean).join(' · ') : '—';
+  const rate = p.baro_rate == null || Math.abs(p.baro_rate) <= 300 ? 'Level'
+    : `${p.baro_rate > 0 ? 'Climbing' : 'Descending'} ${Math.abs(p.baro_rate).toLocaleString()} ft/min`;
+  const speed = p.gs != null ? `${Math.round(p.gs)}&nbsp;kn` : '';
+  const course = p.track != null && `heading&nbsp;${dir8(p.track)}&nbsp;·&nbsp;${Math.round(p.track)}°`;   // wraps whole
+  return {
+    name: planeName(p),
+    sub: [p.airline, p.type, p.phase].filter(Boolean).join(' · ') || 'Unknown aircraft',
+    big: p.on_ground ? `On the ground${speed ? ` <span>${speed}</span>` : ''}`
+      : `${planeAlt(p)}${planeClimb(p)} <span>${[speed, course].filter(Boolean).join(' · ')}</span>`,
+    rows: [['From', airport(p.origin, p.from_city)], ['To', airport(p.destination, p.to_city)],
+           ['Vertical', p.on_ground ? '—' : rate], ['From you', `${miles(p.km)} mi ${dir8(p.bearing)}`],
+           ['Tail', p.registration || '—'], ['Squawk', p.squawk ? `${p.squawk}${SQUAWK[p.squawk] ? ` · ${SQUAWK[p.squawk]}` : ''}` : '—'],
+           ['ICAO', p.hex.toUpperCase()]],
+  };
+}
+
 function drawAircraft(box, planes) {
   const rangeKm = aircraftRangeKm(planes);
   const m = placeStreetMap(box, rangeKm);
   if (!m) return;
   const { svg, W, H, rem, project } = m;
+  const inside = (x, y) => x >= 0 && y >= 0 && x <= W && y <= H;
   let g = m.rings([10, 25, 40].filter(mi => mi * KM_PER_MI < rangeKm * 1.3));
   for (const p of [...planes].reverse()) {          // nearest drawn last, on top
     const [x, y] = project(p.lat, p.lon);
-    if (x >= 0 && y >= 0 && x <= W && y <= H) g += planeIcon(x, y, p.track, 0.65 * rem, p.on_ground ? '#8b98a5' : SERIES[0]);
+    if (inside(x, y)) g += planeIcon(x, y, p.track, 0.65 * rem, p.on_ground ? '#8b98a5' : SERIES[0]);
   }
   svg.innerHTML = g + m.homeDot;
+  hits = { box, rem, items: planes.map(p => {
+    const [x, y] = project(p.lat, p.lon);
+    return inside(x, y) && { x, y, id: p.hex, name: planeName(p),
+      sub: [planeAlt(p) + planeClimb(p), `${miles(p.km)} mi ${dir8(p.bearing)}`, p.type].filter(Boolean).join(' · ') };
+  }).filter(Boolean) };
+  drawChosen(id => planeDetails(planes.find(p => p.hex === id)));
 }
 
 // Ships. Three colour slots go to the kinds that fill a harbour; the rest
@@ -681,6 +719,8 @@ function drawChosen(details) {
   if (!chosen || chosen.page !== pageName()) return;
   const picked = chosen.ids.map(id => items.find(h => h.id === id)).filter(Boolean);
   if (!picked.length) { unchoose(false); return; }    // gone from the map
+  for (const row of $('feature-body').querySelectorAll('.spots [data-id]'))
+    row.classList.toggle('chosen', picked.some(h => h.id === row.dataset.id));
   const svg = box.querySelector('svg');
   for (const h of picked) svg.insertAdjacentHTML('beforeend',
     `<circle cx="${h.x}" cy="${h.y}" r="${(picked.length > 1 ? 1.1 : 1.5) * rem}" fill="none" stroke="var(--accent)" stroke-width="${0.25 * rem}"/>`);
@@ -693,10 +733,14 @@ function drawChosen(details) {
     inner = `<div class="kd">${picked.length} here · tap one</div>` + picked.map(h =>
       `<div class="pick" data-id="${h.id}"><div class="nm">${h.name}</div><div class="kd">${h.sub}</div></div>`).join('');
   }
-  const at = picked[0], W = box.clientWidth, H = box.clientHeight, w = 28 * rem, gap = 2.4 * rem;
-  const right = at.x + gap + w <= W || at.x - gap - w < 0;
+  // Full width where there's room; on a narrow map, as wide as the roomier side allows.
+  const at = picked[0], W = box.clientWidth, H = box.clientHeight, gap = 2.4 * rem, edge = 0.6 * rem;
+  const roomR = W - at.x - gap - edge, roomL = at.x - gap - edge;
+  const right = roomR >= 28 * rem || roomR >= roomL;
+  const w = Math.min(28 * rem, right ? roomR : roomL);
   const card = Object.assign(document.createElement('div'), { className: `card ${right ? 'right' : 'left'}`,
     innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
+  card.style.width = `${w}px`;
   box.append(card);
   const top = Math.min(Math.max(at.y - card.offsetHeight / 2, 0.6 * rem), H - card.offsetHeight - 0.6 * rem);
   Object.assign(card.style, { top: `${top}px`, left: `${right ? at.x + gap : at.x - gap - w}px` });
@@ -858,21 +902,12 @@ const PAGES = [
     const title = `Aircraft · ${planes.length} within ${rangeMi} mi${a.via === 'FlightBoard' ? ' · via FlightBoard' : ''}`;
     const credit = 'Aircraft: your own ADS-B receiver';
     if (!planes.length) return { title, credit, body: '<div class="empty">No aircraft with a position right now.</div>' };
-    const mi = km => km < 10 ? (km / KM_PER_MI).toFixed(1) : Math.round(km / KM_PER_MI);
-    const name = p => p.flight || p.registration || p.hex.toUpperCase();
-    // Flight levels from 18,000 ft, where US altimeters switch to standard pressure.
-    const alt = p => {
-      if (p.on_ground) return 'ground';
-      const h = Math.round(p.alt_baro / 100);
-      return h >= 180 ? `FL${h}` : `${(h * 100).toLocaleString()} ft`;
-    };
-    const climb = p => p.baro_rate > 300 ? ' ↑' : p.baro_rate < -300 ? ' ↓' : '';
     const about = p => [p.origin && `${p.origin} → ${p.destination}`, p.airline, p.type].filter(Boolean).join(' · ');
     const body = `<div class="aprs"><div class="mapgrid">
         <div class="mapbox streetmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
-        <div class="spots">` + planes.slice(0, 25).map(p => `<div class="plane">
-          <span class="call mono">${name(p)}</span><span class="alt">${alt(p)}${climb(p)}</span>
-          <span class="sub">${about(p) || '&nbsp;'}</span><span class="d">${mi(p.km)} mi ${dir8(p.bearing)}</span></div>`).join('') +
+        <div class="spots">` + planes.slice(0, 25).map(p => `<div class="plane" data-id="${p.hex}">
+          <span class="call mono">${planeName(p)}</span><span class="alt">${planeAlt(p)}${planeClimb(p)}</span>
+          <span class="sub">${about(p) || '&nbsp;'}</span><span class="d">${miles(p.km)} mi ${dir8(p.bearing)}</span></div>`).join('') +
       `</div></div></div>`;
     const draw = el => {
       if (!streetMap.div && !streetMap.failed) startStreetMap(renderFeature);
@@ -995,6 +1030,8 @@ function tap(e) {
   }
   const side = edgeAt(e.clientX);
   if (side) { goTo(page + side); return; }
+  const row = e.target.closest('.spots [data-id]');     // a row of the list beside the map
+  if (row) { choose([row.dataset.id]); return; }
   const found = hitsAt(e.clientX, e.clientY);
   if (found.length) choose(found);
   else unchoose();
@@ -1008,7 +1045,7 @@ function showEdges(e) {
   clearTimeout(shownTimer);
   shownTimer = setTimeout(() => f.classList.remove('touched'), 3000);
   if (e.pointerType === 'mouse')
-    f.classList.toggle('pointing', !!edgeAt(e.clientX) || !!e.target.closest('.card .x, .card .pick') ||
+    f.classList.toggle('pointing', !!edgeAt(e.clientX) || !!e.target.closest('.card .x, .card .pick, .spots [data-id]') ||
       (!e.target.closest('.card') && hitsAt(e.clientX, e.clientY).length > 0));
 }
 
