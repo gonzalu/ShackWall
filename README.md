@@ -19,18 +19,18 @@ aircraft, ships and space weather alerts.
 
 ![The forecast page: 48 hours of temperature, wind against the antenna limit, and rain and thunder chances](img/forecast.png)
 
+*The forecast page on a 1080p TV*
+
 | | |
 |---|---|
 | ![Satellite passes: a sky plot of the next three passes beside the next seven, with frequencies](img/satellites.png) | ![POTA spots on a map centred on the station, beside the newest spots](img/pota.png) |
 | Satellite passes | POTA spots |
-| ![Band activity: PSKReporter reports to and from the grid square on a world map with night shaded](img/band-activity.png) | ![On an iPad the fixed panels move across the top](img/ipad.png) |
-| Band activity from PSKReporter | On an iPad |
-
-![APRS stations on a live map round the station, beside the newest ones heard](img/aprs.jpg)
-
-![Aircraft from the station's own ADS-B receiver on the same map, nearest first](img/aircraft.jpg)
-
-![Ships in New York Harbor from aisstream.io, named on a map framed on where they are](img/ships.jpg)
+| ![Band activity: PSKReporter reports to and from the grid square on a world map with night shaded](img/band-activity.png) | ![APRS stations on a live map round the station, beside the newest ones heard](img/aprs.png) |
+| Band activity from PSKReporter | APRS stations nearby |
+| ![Aircraft from the station's own ADS-B receiver on a map, beside a list nearest first](img/aircraft.png) | ![Ships in New York Harbor from aisstream.io, named on a map framed on where they are](img/ships.png) |
+| Aircraft from your own ADS-B receiver | Ships from aisstream.io |
+| ![On an iPad the fixed panels move across the top](img/ipad.png) | ![On an iPad, a plane's card open and the arrows at the panel's edges that a touch brings up](img/ipad-touch.png) |
+| On an iPad | On an iPad, with a plane picked and the edge arrows showing |
 
 ## Install
 
@@ -147,6 +147,17 @@ The card keeps up to date while it's open. Where several sit under your
 finger, as at a busy pier, over an airport, round a city's digipeaters or
 across Europe on the world map, the card lists the nearest six so you can pick
 one, and says how many are there.
+
+| | |
+|---|---|
+| ![A ship's card: Bohemia, a 138 m tug under way at 10 knots, with where it's going, how far away it is, its call sign, MMSI and when it was last heard](img/card-ships.png) | ![A tap on a busy pier lists the nearest six of the fifteen ships there](img/card-ships-list.png) |
+| A ship | A busy pier: the nearest six of fifteen |
+| ![A plane's card: a JetBlue A320 climbing out of JFK for Detroit, with its height, speed, heading, tail number, squawk and ICAO address](img/card-aircraft.png) | ![An APRS weather station's card: temperature, wind, distance, grid square and how its packet reached APRS-IS](img/card-aprs.png) |
+| A plane | An APRS weather station |
+| ![A grid square's card on the band activity map: 125 reports from EL98 in Florida, the bands each way, the stations heard, the modes and the best report](img/card-band-activity.png) | ![A POTA spot's card: KC5JEC in a New Mexico park on 40 m FT8, with the beam heading, grid, spot comment and the skimmer that spotted it](img/card-pota.png) |
+| A grid square on the band activity map | A POTA spot |
+| ![A satellite pass's card: the ISS, when it rises, peaks and sets and where, and its three voice frequencies](img/card-satellites.png) | |
+| A satellite pass | |
 
 While a card is open the pages stop cycling. Tap empty map, the card's ×, or
 press Esc to close it; changing page closes it too. A card left alone closes

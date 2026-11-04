@@ -794,6 +794,8 @@ function drawShips(box, ships) {
   // Names, ships under way first and big before small; a name that would
   // land on another is left off.
   const placed = [], free = b => placed.every(q => b[0] > q[2] || b[2] < q[0] || b[1] > q[3] || b[3] < q[1]);
+  const credit = box.querySelector('.mapcredit:not([hidden])');      // the map's credit stays readable
+  if (credit) placed.push([credit.offsetLeft, credit.offsetTop, credit.offsetLeft + credit.offsetWidth, credit.offsetTop + credit.offsetHeight]);
   for (const s of [...ships].sort((a, b) => underWay(b) - underWay(a) || (b.length_m || 0) - (a.length_m || 0))) {
     if (!s.name) continue;
     const [x, y] = project(s.lat, s.lon);
@@ -880,7 +882,10 @@ function drawChosen(details) {
   // Beside it at full width where there's room. Squeezed beside it, the card
   // goes above or below it instead if it fits there; failing that, beside it
   // as wide as the roomier side allows.
-  const at = picked[0], W = box.clientWidth, H = box.clientHeight, gap = 2.4 * rem, edge = 0.6 * rem;
+  const at = picked[0], W = box.clientWidth, gap = 2.4 * rem, edge = 0.6 * rem;
+  // The map's credit stays in sight: the card stops above it.
+  const credit = box.querySelector('.mapcredit:not([hidden])');
+  const H = credit ? credit.offsetTop - 0.3 * rem : box.clientHeight;
   const roomR = W - at.x - gap - edge, roomL = at.x - gap - edge;
   const card = Object.assign(document.createElement('div'), { innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
   box.append(card);
@@ -901,7 +906,8 @@ function drawChosen(details) {
   }
   const right = roomR >= 28 * rem || roomR >= roomL;
   const w = Math.min(28 * rem, right ? roomR : roomL);
-  card.className = `card ${right ? 'right' : 'left'}`;
+  // Squeezed, each label goes above its value rather than beside it.
+  card.className = `card ${right ? 'right' : 'left'}${w < 22 * rem ? ' narrow' : ''}`;
   card.style.width = `${w}px`;
   const h = fit();                    // tight: a long comment in a narrow space
   const top = Math.min(Math.max(at.y - h / 2, edge), H - h - edge);

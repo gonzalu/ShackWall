@@ -140,6 +140,8 @@ aside { display: grid; gap: 1rem; grid-template-rows: 1.3fr 1fr 0.8fr; min-heigh
 .card dd { font-size: 1.5rem; overflow-wrap: anywhere; }
 .card .wide { grid-column: 1 / -1; white-space: normal; }          /* a long value under its label, not beside it */
 .card dd.wide { margin-bottom: 0.3rem; }
+.card.narrow dl { grid-template-columns: 1fr; row-gap: 0; }
+.card.narrow dd { margin-bottom: 0.45rem; }
 .card .pick { border-top: 1px solid var(--line); padding-top: 0.5rem; }
 .card .pick .nm { font-size: 1.7rem; }
 .card.tight { gap: 0.4rem; padding: 0.7rem 1rem; }
