@@ -35,6 +35,7 @@ RETRY_S = (10, 600)                 # reconnect backoff, first and longest
 # Points sent to the page: the most recent per grid square, band and
 # direction, up to this many.
 MAX_POINTS = 800
+POINT_CALLS = 4         # stations named per dot
 
 state = {"updated": None, "errors": {}}
 _reports = {}           # (sender, receiver, band) -> newest report
@@ -88,10 +89,17 @@ def _summarise():
         if s[key] is None or km > s[key]["km"]:
             s[key] = far
         p = points.setdefault((direction, r["band"], far_loc[:4]), {
-            "dir": direction, "band": r["band"], "lat": pos[0], "lon": pos[1],
-            "km": round(km), "n": 0, "t": 0})
+            "dir": direction, "band": r["band"], "square": far_loc[:4], "lat": pos[0], "lon": pos[1],
+            "km": round(km), "bearing": round(brg), "n": 0, "t": 0, "calls": [], "modes": [], "snr": None})
         p["n"] += 1
         p["t"] = max(p["t"], r["t"])
+        # A little about who's there, for the card a tap on the dot opens.
+        if far["call"] and far["call"] not in p["calls"] and len(p["calls"]) < POINT_CALLS:
+            p["calls"].append(far["call"])
+        if r["mode"] and r["mode"] not in p["modes"]:
+            p["modes"].append(r["mode"])
+        if r["snr"] is not None and (p["snr"] is None or r["snr"] > p["snr"]):
+            p["snr"] = r["snr"]
         if me and me in (r["sender"], r["receiver"]):
             mine.append({"dir": direction, "band": r["band"], "mode": r["mode"],
                          "snr": r["snr"], "t": r["t"], **far})

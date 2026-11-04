@@ -102,7 +102,7 @@ while your finger or mouse is on it. Tapping or clicking a dot under the panel
 jumps straight to that page. The page you choose stays up for its full 20
 seconds before the rotation carries on from there.
 
-### More about one ship, plane or station
+### More about what's on a map
 
 On the ships page, tap or click a ship for a card beside it: what kind of
 ship it is and how long, its speed and heading or whether it's moored, where
@@ -123,9 +123,16 @@ object, how far it is from you, its grid square, how many times it has moved
 in the last hour, whether its packet reached APRS-IS by radio through an iGate
 or straight over the internet, and when it was last heard.
 
+On the band activity page, tap or click a dot for its grid square: how far
+away and in which direction it is, how many reports there were, the bands
+your square was heard on there and the stations that heard it, the bands
+that square was heard on in yours and the stations heard, the modes, the best
+signal report and when the last one came in.
+
 The card keeps up to date while it's open. Where several sit under your
-finger, as at a busy pier, over an airport or round a city's digipeaters, the
-card lists the nearest six so you can pick one, and says how many are there.
+finger, as at a busy pier, over an airport, round a city's digipeaters or
+across Europe on the world map, the card lists the nearest six so you can pick
+one, and says how many are there.
 
 While a card is open the pages stop cycling. Tap empty map, the card's ×, or
 press Esc to close it; changing page closes it too. A card left alone closes

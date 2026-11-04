@@ -357,6 +357,41 @@ function worldMap(box, points, nowMs) {
   const [hx, hy] = fwd(state.station.lat, state.station.lon);
   g += `<circle cx="${hx}" cy="${hy}" r="${0.6 * rem}" fill="var(--text)" stroke="var(--panel)" stroke-width="2"/>`;
   svg.innerHTML = g;
+  // A tap picks a grid square: every band and both ways at once.
+  const squares = {};
+  for (const p of points) if (p.square) (squares[p.square] ||= []).push(p);
+  hits = { box, rem, items: Object.entries(squares).map(([sq, ps]) => {
+    const [x, y] = fwd(ps[0].lat, ps[0].lon);
+    return ps[0].lat <= top && ps[0].lat >= bottom && { x, y, id: sq, name: sq,
+      sub: `${Math.round(ps[0].km / KM_PER_MI).toLocaleString()} mi ${dir8(ps[0].bearing)} · ${reports(ps.reduce((n, p) => n + p.n, 0))}` };
+  }).filter(Boolean) };
+  drawChosen(sq => pskDetails(sq, squares[sq]));
+}
+
+const reports = n => `${n} report${n === 1 ? '' : 's'}`;
+
+// What a grid square's card says: who was heard each way, on which bands.
+function pskDetails(sq, ps) {
+  const me = state.psk.square, order = state.psk.bands.map(b => b.band);
+  const way = dir => {
+    const here = ps.filter(p => p.dir === dir).sort((a, b) => order.indexOf(a.band) - order.indexOf(b.band));
+    return { bands: here.map(p => p.band).join(' · '),
+             calls: [...new Set(here.flatMap(p => p.calls))].slice(0, 4).join(', ') };
+  };
+  const out = way('out'), inn = way('in'), snr = ps.map(p => p.snr).filter(v => v != null);
+  const best = snr.length ? Math.max(...snr) : null;
+  const heard = Math.max(0, Math.round(state.server_time - Math.max(...ps.map(p => p.t))));
+  const n = ps.reduce((t, p) => t + p.n, 0);
+  return {
+    name: sq,
+    sub: `${Math.round(ps[0].km / KM_PER_MI).toLocaleString()} mi ${dir8(ps[0].bearing)} · bearing ${ps[0].bearing}°`,
+    big: `${reports(n)} <span>last&nbsp;${state.psk.window_min}&nbsp;min</span>`,
+    rows: [out.bands && [`${me} heard there`, out.bands, true], out.calls && ['Heard by', out.calls, true],
+           inn.bands && [`Heard in ${me}`, inn.bands, true], inn.calls && ['Heard from', inn.calls, true],
+           ps.some(p => p.modes?.length) && ['Modes', [...new Set(ps.flatMap(p => p.modes || []))].join(', ')],
+           best != null && ['Best report', `${best > 0 ? '+' : ''}${best} dB`],
+           ['Last report', heard < 90 ? `${heard} s ago` : ago(heard)]].filter(Boolean),
+  };
 }
 
 // APRS station kinds. Three colour slots go to the kinds worth finding at a
