@@ -520,6 +520,48 @@ function drawAprs(box, a) {
     if (x >= 0 && y >= 0 && x <= W && y <= H) g += aprsMarker(s.kind, x, y, 0.55 * rem, s.course || 0);
   }
   svg.innerHTML = g + m.homeDot;
+  hits = { box, rem, items: a.stations.map(s => {
+    const [x, y] = project(s.lat, s.lon);
+    return x >= 0 && y >= 0 && x <= W && y <= H && { x, y, id: aprsId(s), name: s.call,
+      sub: `${APRS_LABEL[s.kind] || 'Station'} · ${miles(s.km)} mi ${dir8(s.bearing)}` };
+  }).filter(Boolean) };
+  drawChosen(id => aprsDetails(a.stations.find(s => aprsId(s) === id)));
+}
+
+// Calls are already escaped and may hold spaces; this survives a data-id attribute.
+const aprsId = s => encodeURIComponent(s.call);
+const APRS_LABEL = { mobile: 'Mobile', weather: 'Weather station', object: 'Object', digi: 'Digipeater',
+  igate: 'iGate', home: 'Fixed station', other: 'Station' };
+
+// The six-character Maidenhead locator for a position, as on a QSL card.
+function gridSquare(lat, lon) {
+  const x = (lon + 180) / 20, y = (lat + 90) / 10, A = 'A'.charCodeAt(0);
+  const sx = (x % 1) * 10, sy = (y % 1) * 10;
+  return String.fromCharCode(A + Math.floor(x), A + Math.floor(y)) + Math.floor(sx) + Math.floor(sy) +
+    String.fromCharCode(A + 32 + Math.floor((sx % 1) * 24), A + 32 + Math.floor((sy % 1) * 24));
+}
+
+// What a station's card says about it.
+function aprsDetails(s) {
+  const heard = Math.max(0, Math.round(state.server_time - s.heard));
+  let big = '';
+  if (s.kind === 'weather' && s.temp_f != null)
+    big = `${s.temp_f}°F${s.wind_mph != null ? ` <span>wind${s.wind_dir != null ? `&nbsp;${dir8(s.wind_dir)}` : ''}&nbsp;${s.wind_mph}&nbsp;mph` +
+      `${s.gust_mph ? ` · gusts&nbsp;${s.gust_mph}` : ''}</span>` : ''}`;
+  else if (s.speed_kn)
+    big = `${Math.round(s.speed_kn * 1.15078)} mph${s.course != null ? ` <span>heading&nbsp;${dir8(s.course)}&nbsp;·&nbsp;${Math.round(s.course)}°</span>` : ''}`;
+  const moves = s.trail.length;
+  return {
+    name: s.call,
+    sub: APRS_LABEL[s.kind] || 'Station',
+    big,
+    rows: [s.comment && ['Says', s.comment, true],s.object && s.by !== s.call && ['Put up by', s.by],
+           ['From you', `${miles(s.km)} mi ${dir8(s.bearing)}`], ['Grid', gridSquare(s.lat, s.lon)],
+           moves > 1 && ['Moved', `${moves} positions in the last hour`],
+           // The q construct in the packet's path says how it reached APRS-IS.
+           ['Reached by', s.rf ? 'Radio, through an iGate' : 'Internet'],
+           ['Heard', heard < 90 ? `${heard} s ago` : ago(heard)]].filter(Boolean),
+  };
 }
 
 // An airliner seen from above, pointing along its track.
@@ -678,7 +720,7 @@ function drawShips(box, ships) {
  * to cycling. */
 const CHOSEN_MS = 45_000;
 let hits = null;          // what the map just drew, and where: { box, rem, items: [{ x, y, id, name, sub }] }
-let chosen = null;        // { page, ids }: one id for its details, more for a list to pick from
+let chosen = null;        // { page, ids, total }: one id for its details, more for a list to pick from
 let chosenTimer = null;
 
 const pageName = () => activePages()[page % activePages().length].name;
@@ -688,11 +730,12 @@ function hitsAt(clientX, clientY) {
   const r = hits.box.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
   const reach = 1.6 * hits.rem;      // about a fingertip
   return hits.items.map(h => [Math.hypot(h.x - x, h.y - y), h]).filter(([d]) => d <= reach)
-    .sort((a, b) => a[0] - b[0]).slice(0, 6).map(([, h]) => h.id);
+    .sort((a, b) => a[0] - b[0]).map(([, h]) => h.id);
 }
 
+// A list shows the nearest six of however many are there.
 function choose(ids) {
-  chosen = { page: pageName(), ids };
+  chosen = { page: pageName(), ids: ids.slice(0, 6), total: ids.length };
   clearInterval(pageTimer);
   pageTimer = null;
   clearTimeout(chosenTimer);
@@ -727,10 +770,11 @@ function drawChosen(details) {
   let inner;
   if (picked.length === 1) {
     const d = details(picked[0].id);
-    inner = `<div><div class="nm">${d.name}</div><div class="kd">${d.sub}</div></div><div class="big">${d.big}</div>
-      <dl>${d.rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+    inner = `<div><div class="nm">${d.name}</div><div class="kd">${d.sub}</div></div>${d.big ? `<div class="big">${d.big}</div>` : ''}
+      <dl>${d.rows.map(([k, v, wide]) => wide ? `<dt class="wide">${k}</dt><dd class="wide">${v}</dd>` : `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   } else {
-    inner = `<div class="kd">${picked.length} here · tap one</div>` + picked.map(h =>
+    const many = chosen.total > picked.length ? `${chosen.total} here · the nearest ${picked.length}` : `${picked.length} here`;
+    inner = `<div class="kd">${many} · tap one</div>` + picked.map(h =>
       `<div class="pick" data-id="${h.id}"><div class="nm">${h.name}</div><div class="kd">${h.sub}</div></div>`).join('');
   }
   // Full width where there's room; on a narrow map, as wide as the roomier side allows.
@@ -742,6 +786,7 @@ function drawChosen(details) {
     innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
   card.style.width = `${w}px`;
   box.append(card);
+  if (card.offsetHeight > H - 1.2 * rem) card.classList.add('tight');    // a long comment in a narrow space
   const top = Math.min(Math.max(at.y - card.offsetHeight / 2, 0.6 * rem), H - card.offsetHeight - 0.6 * rem);
   Object.assign(card.style, { top: `${top}px`, left: `${right ? at.x + gap : at.x - gap - w}px` });
   card.style.setProperty('--tip', `${Math.min(Math.max(at.y - top, rem), card.offsetHeight - rem)}px`);
@@ -885,7 +930,7 @@ const PAGES = [
       `<span><svg viewBox="0 0 16 16">${aprsMarker(k, 8, 8, 5)}</svg> ${APRS_KIND[k].name} ${counts[APRS_KIND[k].name] || 0}</span>`).join('');
     const body = `<div class="aprs"><div class="mapgrid">
         <div class="mapbox streetmap"><svg></svg><div class="mapcredit" hidden>© OpenMapTiles © OpenStreetMap contributors</div></div>
-        <div class="spots">` + stations.slice(0, 25).map(s => `<div class="station">
+        <div class="spots">` + stations.slice(0, 25).map(s => `<div class="station" data-id="${aprsId(s)}">
           <svg viewBox="0 0 18 18">${aprsMarker(s.kind, 9, 9, 5, s.course || 0)}</svg><span class="call mono">${s.call}</span>
           <span class="d">${mi(s.km)} mi ${dir8(s.bearing)}</span><span class="sub">${[ago(s), what(s)].filter(Boolean).join(' · ')}</span></div>`).join('') +
       `</div></div><div class="legend">${legend}<span>· last ${a.window_min} min</span></div></div>`;
