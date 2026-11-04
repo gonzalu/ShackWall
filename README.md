@@ -93,13 +93,27 @@ To change page yourself:
 
 | On | Next page | Previous page |
 |---|---|---|
-| A touch screen | swipe left, or tap | swipe right |
-| A computer | right-click the big panel | left-click the big panel |
+| A touch screen | swipe left, or tap the panel's right edge | swipe right, or tap its left edge |
+| A computer | click the panel's right edge, or right-click anywhere on it | click its left edge |
 | A keyboard | → or Page Down | ← or Page Up |
 
-Tapping or clicking a dot under the panel jumps straight to that page. The
-page you choose stays up for its full 20 seconds before the rotation carries
-on from there.
+The edges are the outer tenth of the panel on each side; arrows show there
+while your finger or mouse is on it. Tapping or clicking a dot under the panel
+jumps straight to that page. The page you choose stays up for its full 20
+seconds before the rotation carries on from there.
+
+### More about one ship
+
+On the ships page, tap or click a ship for a card beside it: what kind of
+ship it is and how long, its speed and heading or whether it's moored, where
+its crew says it's going, how far it is from you, its call sign and MMSI, and
+when it was last heard. The card keeps up to date while it's open. Where
+several ships sit under your finger, as at a busy pier, the card lists them so
+you can pick one.
+
+While a card is open the pages stop cycling. Tap empty map, the card's ×, or
+press Esc to close it; changing page closes it too. A card left alone closes
+itself after 45 seconds, so a screen nobody is using goes back to cycling.
 
 The HF bands panel shows N0NBH's Good / Fair / Poor call for each pair of
 bands, by day and by night. The half of the day it is at your station is

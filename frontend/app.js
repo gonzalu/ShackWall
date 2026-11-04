@@ -12,6 +12,19 @@ let clockOffsetMs = 0;
 
 const $ = id => document.getElementById(id);
 
+// Much of the state is text from outside: callsigns and comments sent over the
+// air, names crews type into their ships' AIS, park names, forecasts. Any of it
+// could hold HTML, and an APRS comment of <script>... must show as text, not
+// run on every screen. So every string in the state is escaped once, as it
+// arrives, and the page puts state text in with innerHTML from then on.
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeAll(v) {
+  if (typeof v === 'string') return v.replace(/[&<>"']/g, c => ESCAPES[c]);
+  if (Array.isArray(v)) return v.map(escapeAll);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [escapeAll(k), escapeAll(x)]));
+  return v;
+}
+
 function now() { return new Date(Date.now() + clockOffsetMs); }
 
 function hhmm(date, timeZone) {
@@ -32,7 +45,7 @@ function ago(seconds) {
 
 function set(id, value, cls) {
   const el = $(id);
-  el.textContent = value ?? '—';
+  el.innerHTML = value ?? '—';
   el.className = 'v' + (cls ? ' ' + cls : '');
 }
 
@@ -45,8 +58,8 @@ function xrayClass(c) { return !c ? '' : c[0] === 'X' ? 'poor' : c[0] === 'M' ? 
 function scaleColour(level) { return level >= 3 ? 'var(--poor)' : level >= 1 ? 'var(--fair)' : ''; }
 
 function renderStation(s) {
-  $('call').textContent = s.callsign || 'Set CALLSIGN';
-  $('meta').textContent = [s.grid, s.city, s.cq_zone && `CQ ${s.cq_zone}`, s.itu_zone && `ITU ${s.itu_zone}`]
+  $('call').innerHTML = s.callsign || 'Set CALLSIGN';
+  $('meta').innerHTML = [s.grid, s.city, s.cq_zone && `CQ ${s.cq_zone}`, s.itu_zone && `ITU ${s.itu_zone}`]
     .filter(Boolean).join(' · ');
 }
 
@@ -79,7 +92,7 @@ function renderBands(b, sunElevation) {
   // Fetched hourly, so two missed fetches before it's worth pointing out.
   const stale = age == null || age > 7200;
   const src = $('hf-src');
-  src.textContent = [b.noise && `Noise ${b.noise}`, 'HAMQSL.com', stale && (age == null ? 'waiting' : ago(age))]
+  src.innerHTML = [b.noise && `Noise ${b.noise}`, 'HAMQSL.com', stale && (age == null ? 'waiting' : ago(age))]
     .filter(Boolean).join(' · ');
   src.className = 'age' + (stale ? ' stale' : '');
   if (!b.bands?.length) return;
@@ -100,7 +113,7 @@ function renderWeather(w) {
   // Refreshed every two minutes; three missed in a row is worth showing.
   const stale = age == null || age > 600;
   const src = $('wx-src');
-  src.textContent = [w.now && `NWS · ${w.now.station}`, stale && (age == null ? 'waiting' : ago(age))]
+  src.innerHTML = [w.now && `NWS · ${w.now.station}`, stale && (age == null ? 'waiting' : ago(age))]
     .filter(Boolean).join(' · ');
   src.className = 'age' + (stale ? ' stale' : '');
 
@@ -549,6 +562,24 @@ const SHIP_KIND = {
   other: { colour: '#8b98a5', name: 'Other' },
 };
 const underWay = s => (s.sog || 0) >= 0.5;
+const SHIP_LABEL = { cargo: 'Cargo ship', tanker: 'Tanker', passenger: 'Passenger or ferry',
+  service: 'Tug or service', pleasure: 'Pleasure craft', other: 'Other' };
+
+// What a ship's card says about it.
+function shipDetails(s) {
+  const mi = km => km < 10 ? (km / KM_PER_MI).toFixed(1) : Math.round(km / KM_PER_MI);
+  const heard = Math.max(0, Math.round(state.server_time - s.heard));
+  const course = s.heading ?? s.cog;
+  return {
+    name: s.name || `MMSI ${s.mmsi}`,
+    sub: [SHIP_LABEL[s.kind], s.length_m && `${s.length_m} m long`].filter(Boolean).join(' · '),
+    big: underWay(s)
+      ? `${s.sog.toFixed(1)} kn${course != null ? ` <span>heading ${dir8(course)} · ${Math.round(course)}°</span>` : ''}`
+      : s.status ? s.status[0].toUpperCase() + s.status.slice(1) : 'Stopped',
+    rows: [['Going to', s.destination || '—'], ['From you', `${mi(s.km)} mi ${dir8(s.bearing)}`],
+           ['Call sign', s.callsign || '—'], ['MMSI', s.mmsi], ['Heard', heard < 90 ? `${heard} s ago` : ago(heard)]],
+  };
+}
 
 function shipIcon(x, y, angle, r, colour, still) {
   if (still) return `<circle cx="${x}" cy="${y}" r="${0.55 * r}" fill="${colour}" stroke="#0b0e12" stroke-width="1.5"/>`;
@@ -593,6 +624,83 @@ function drawShips(box, ships) {
   }
   const [hx, hy] = project(state.station.lat, state.station.lon);
   svg.innerHTML = g + (inside(hx, hy) ? m.homeDot : '');
+  hits = { box, rem, items: ships.map(s => {
+    const [x, y] = project(s.lat, s.lon);
+    return inside(x, y) && { x, y, id: String(s.mmsi), name: s.name || `MMSI ${s.mmsi}`,
+      sub: [SHIP_LABEL[s.kind], underWay(s) ? `${s.sog.toFixed(1)} kn` : s.status || 'stopped'].join(' · ') };
+  }).filter(Boolean) };
+  drawChosen(id => shipDetails(ships.find(s => String(s.mmsi) === id)));
+}
+
+/* Details. A tap or click on something on a map picks it: a ring goes round
+ * it and a card beside it says more, kept up to date as the data refreshes.
+ * Where several sit under one finger, the card lists them to pick from. The
+ * rotation waits while a card is open, and starts again when it's closed or
+ * after CHOSEN_MS with nobody touching it, so a screen left alone goes back
+ * to cycling. */
+const CHOSEN_MS = 45_000;
+let hits = null;          // what the map just drew, and where: { box, rem, items: [{ x, y, id, name, sub }] }
+let chosen = null;        // { page, ids }: one id for its details, more for a list to pick from
+let chosenTimer = null;
+
+const pageName = () => activePages()[page % activePages().length].name;
+
+function hitsAt(clientX, clientY) {
+  if (!hits || !hits.box.isConnected) return [];
+  const r = hits.box.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
+  const reach = 1.6 * hits.rem;      // about a fingertip
+  return hits.items.map(h => [Math.hypot(h.x - x, h.y - y), h]).filter(([d]) => d <= reach)
+    .sort((a, b) => a[0] - b[0]).slice(0, 6).map(([, h]) => h.id);
+}
+
+function choose(ids) {
+  chosen = { page: pageName(), ids };
+  clearInterval(pageTimer);
+  pageTimer = null;
+  clearTimeout(chosenTimer);
+  chosenTimer = setTimeout(unchoose, CHOSEN_MS);
+  renderFeature();
+  schedulePoll();
+}
+
+// Let go of the choice; with `redraw` false the caller is drawing anyway.
+function unchoose(redraw = true) {
+  if (!chosen) return;
+  chosen = null;
+  clearTimeout(chosenTimer);
+  clearInterval(pageTimer);
+  pageTimer = setInterval(nextPage, PAGE_MS);
+  if (redraw) renderFeature();
+  schedulePoll();
+}
+
+// Ring what's chosen and put its card beside it, on the side with room.
+function drawChosen(details) {
+  const { box, rem, items } = hits;
+  box.querySelector('.card')?.remove();
+  if (!chosen || chosen.page !== pageName()) return;
+  const picked = chosen.ids.map(id => items.find(h => h.id === id)).filter(Boolean);
+  if (!picked.length) { unchoose(false); return; }    // gone from the map
+  const svg = box.querySelector('svg');
+  for (const h of picked) svg.insertAdjacentHTML('beforeend',
+    `<circle cx="${h.x}" cy="${h.y}" r="${(picked.length > 1 ? 1.1 : 1.5) * rem}" fill="none" stroke="var(--accent)" stroke-width="${0.25 * rem}"/>`);
+  let inner;
+  if (picked.length === 1) {
+    const d = details(picked[0].id);
+    inner = `<div><div class="nm">${d.name}</div><div class="kd">${d.sub}</div></div><div class="big">${d.big}</div>
+      <dl>${d.rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  } else {
+    inner = `<div class="kd">${picked.length} here · tap one</div>` + picked.map(h =>
+      `<div class="pick" data-id="${h.id}"><div class="nm">${h.name}</div><div class="kd">${h.sub}</div></div>`).join('');
+  }
+  const at = picked[0], W = box.clientWidth, H = box.clientHeight, w = 28 * rem, gap = 2.4 * rem;
+  const right = at.x + gap + w <= W || at.x - gap - w < 0;
+  const card = Object.assign(document.createElement('div'), { className: `card ${right ? 'right' : 'left'}`,
+    innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
+  box.append(card);
+  const top = Math.min(Math.max(at.y - card.offsetHeight / 2, 0.6 * rem), H - card.offsetHeight - 0.6 * rem);
+  Object.assign(card.style, { top: `${top}px`, left: `${right ? at.x + gap : at.x - gap - w}px` });
+  card.style.setProperty('--tip', `${Math.min(Math.max(at.y - top, rem), card.offsetHeight - rem)}px`);
 }
 
 // Keep as many rows as fit in a list, then say how many more there are.
@@ -823,8 +931,9 @@ function renderFeature() {
   if (!state) return;
   const pages = activePages();
   const p = pages[page % pages.length]();
-  $('feature-title').textContent = p.title;
+  $('feature-title').innerHTML = p.title;
   $('feature-body').innerHTML = p.body;
+  hits = null;
   resized.disconnect();
   drawn = p.draw;
   if (drawn) {
@@ -850,30 +959,72 @@ let pageTimer = setInterval(nextPage, PAGE_MS);
 // Going to a page by hand restarts the rotation from there, so the page you
 // chose gets its full 20 seconds.
 function goTo(n) {
+  chosen = null;
+  clearTimeout(chosenTimer);
   clearInterval(pageTimer);
   showPage(n);
   pageTimer = setInterval(nextPage, PAGE_MS);
 }
 
-/* Moving between pages by hand:
- *   touch   swipe left for the next page, right for the previous; a tap
- *           moves on, as before
- *   mouse   left click for the previous page, right click for the next
- *   keys    the left and right arrows, Page Up and Page Down
+/* By hand:
+ *   swipe   left for the next page, right for the previous, anywhere on the
+ *           panel
+ *   edges   a tap or left click on the outer tenth of the panel: left for the
+ *           previous page, right for the next. Arrows show there while a
+ *           finger or the mouse is on the panel
+ *   tap     anywhere else picks what's under it, on a page with things to
+ *           pick, and opens its card; a tap on empty map closes it
+ *   mouse   the right button is the next page, anywhere
+ *   keys    the left and right arrows, Page Up and Page Down; Esc closes a card
  *   dots    a tap or click on a dot under the panel jumps to that page */
 const SWIPE_PX = 40;
+const EDGE = 0.1;
 let pressed = null;
-$('feature').addEventListener('pointerdown', e => { pressed = { x: e.clientX, y: e.clientY, type: e.pointerType, button: e.button }; });
+
+function edgeAt(clientX) {
+  const r = $('feature').getBoundingClientRect();
+  return clientX < r.left + r.width * EDGE ? -1 : clientX > r.right - r.width * EDGE ? 1 : 0;
+}
+
+function tap(e) {
+  if (e.target.closest('.card')) {
+    const pick = e.target.closest('.pick');
+    if (pick) choose([pick.dataset.id]);
+    else if (e.target.closest('.x')) unchoose();
+    return;
+  }
+  const side = edgeAt(e.clientX);
+  if (side) { goTo(page + side); return; }
+  const found = hitsAt(e.clientX, e.clientY);
+  if (found.length) choose(found);
+  else unchoose();
+}
+
+// The edge arrows show for a few seconds after the last touch or movement.
+let shownTimer = null;
+function showEdges(e) {
+  const f = $('feature');
+  f.classList.add('touched');
+  clearTimeout(shownTimer);
+  shownTimer = setTimeout(() => f.classList.remove('touched'), 3000);
+  if (e.pointerType === 'mouse')
+    f.classList.toggle('pointing', !!edgeAt(e.clientX) || !!e.target.closest('.card .x, .card .pick') ||
+      (!e.target.closest('.card') && hitsAt(e.clientX, e.clientY).length > 0));
+}
+
+$('feature').addEventListener('pointermove', showEdges);
+$('feature').addEventListener('pointerdown', e => {
+  showEdges(e);
+  if (chosen) { clearTimeout(chosenTimer); chosenTimer = setTimeout(unchoose, CHOSEN_MS); }    // still in use
+  pressed = { x: e.clientX, y: e.clientY, type: e.pointerType, button: e.button };
+});
 $('feature').addEventListener('pointerup', e => {
   if (!pressed) return;
   const dx = e.clientX - pressed.x, dy = e.clientY - pressed.y, { type, button } = pressed;
   pressed = null;
-  if (type === 'mouse') {
-    if (button === 0) goTo(page - 1);         // the right button is the menu event below
-    return;
-  }
-  if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) goTo(dx < 0 ? page + 1 : page - 1);
-  else if (Math.hypot(dx, dy) < SWIPE_PX) goTo(page + 1);    // a tap
+  if (type === 'mouse' && button !== 0) return;      // the right button is the menu event below
+  if (type !== 'mouse' && Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) goTo(dx < 0 ? page + 1 : page - 1);
+  else if (Math.hypot(dx, dy) < SWIPE_PX) tap(e);
 });
 $('feature').addEventListener('pointercancel', () => { pressed = null; });
 // The right mouse button: next page instead of the browser's menu.
@@ -881,6 +1032,7 @@ $('feature').addEventListener('contextmenu', e => { e.preventDefault(); goTo(pag
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' || e.key === 'PageDown') goTo(page + 1);
   else if (e.key === 'ArrowLeft' || e.key === 'PageUp') goTo(page - 1);
+  else if (e.key === 'Escape') unchoose();
 });
 $('dots').addEventListener('click', e => {
   const i = [...$('dots').children].indexOf(e.target);
@@ -891,7 +1043,7 @@ async function poll() {
   try {
     const sent = Date.now();
     const r = await fetch('/api/state', { cache: 'no-store' });
-    state = await r.json();
+    state = escapeAll(await r.json());
     clockOffsetMs = state.server_time * 1000 - (sent + Date.now()) / 2;
     // A cast page never reloads by itself; pick up a redeployed frontend.
     if (firstBuild === null) firstBuild = state.build;
@@ -913,7 +1065,7 @@ let pollTimer = null;
 function schedulePoll() {
   clearTimeout(pollTimer);
   const pages = activePages(), showing = pages[page % pages.length];
-  pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, showing?.poll_ms || POLL_MS);
+  pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, chosen ? 5000 : showing?.poll_ms || POLL_MS);
 }
 
 setInterval(tickClocks, 1000);
