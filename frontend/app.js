@@ -195,38 +195,76 @@ const ms = iso => new Date(iso).getTime();
 // dot for where it is now while it's up.
 function skyPlot(svg, list, nowMs) {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  const S = Math.min(svg.clientWidth, svg.clientHeight);
+  const W = svg.clientWidth, H = svg.clientHeight, S = Math.min(W, H);
   if (!S) return;
-  const c = S / 2, R = c - 3 * rem;
+  const cx = W / 2, cy = H / 2, R = S / 2 - 3 * rem;
   const xy = (az, el) => {
     const r = R * (90 - Math.max(el, 0)) / 90, a = az * Math.PI / 180;
-    return [c + r * Math.sin(a), c - r * Math.cos(a)];
+    return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
   };
   let g = '';
-  for (const el of [0, 30, 60]) g += `<circle cx="${c}" cy="${c}" r="${R * (90 - el) / 90}" fill="none" stroke="var(--line)"/>`;
-  g += `<line x1="${c - R}" x2="${c + R}" y1="${c}" y2="${c}" stroke="var(--line)"/>` +
-       `<line y1="${c - R}" y2="${c + R}" x1="${c}" x2="${c}" stroke="var(--line)"/>`;
+  for (const el of [0, 30, 60]) g += `<circle cx="${cx}" cy="${cy}" r="${R * (90 - el) / 90}" fill="none" stroke="var(--line)"/>`;
+  g += `<line x1="${cx - R}" x2="${cx + R}" y1="${cy}" y2="${cy}" stroke="var(--line)"/>` +
+       `<line y1="${cy - R}" y2="${cy + R}" x1="${cx}" x2="${cx}" stroke="var(--line)"/>`;
   for (const [l, az] of [['N', 0], ['E', 90], ['S', 180], ['W', 270]]) {
     // Outside the rim by a little more than a rising satellite's dot.
-    const r = R + 1.9 * rem, a = az * Math.PI / 180, x = c + r * Math.sin(a), y = c - r * Math.cos(a);
+    const r = R + 1.9 * rem, a = az * Math.PI / 180, x = cx + r * Math.sin(a), y = cy - r * Math.cos(a);
     g += `<text x="${x}" y="${y + 0.45 * rem}" text-anchor="middle" fill="var(--dim)" font-size="${1.3 * rem}">${l}</text>`;
   }
+  const items = [];
   list.forEach((p, n) => {
     if (!p.track) return;
-    g += `<polyline points="${p.track.map(([, az, el]) => xy(az, el).join(',')).join(' ')}" fill="none" stroke="${SERIES[n]}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    const colour = SERIES[n] || 'var(--text)';      // past the three plotted: a pass tapped in the list
+    g += `<polyline points="${p.track.map(([, az, el]) => xy(az, el).join(',')).join(' ')}" fill="none" stroke="${colour}" stroke-width="2.5" stroke-linejoin="round"/>`;
     const [ax, ay] = xy(p.track[0][1], p.track[0][2]);
-    g += `<circle cx="${ax}" cy="${ay}" r="${0.5 * rem}" fill="${SERIES[n]}" stroke="var(--panel)" stroke-width="2"/>`;
-    // The name goes on the inside of the rising point, clear of the N/E/S/W letters.
-    const k = 2.2 * rem / Math.max(Math.hypot(ax - c, ay - c), 1);
-    g += `<text x="${ax + (c - ax) * k}" y="${ay + (c - ay) * k + 0.45 * rem}" text-anchor="middle" fill="var(--text)" font-size="${1.3 * rem}">${p.name}</text>`;
+    g += `<circle cx="${ax}" cy="${ay}" r="${0.5 * rem}" fill="${colour}" stroke="var(--panel)" stroke-width="2"/>`;
+    // The name goes on the inside of the rising point, clear of the N/E/S/W
+    // letters; a pass tapped in the list has its name on its card.
+    const k = 2.2 * rem / Math.max(Math.hypot(ax - cx, ay - cy), 1);
+    if (SERIES[n]) g += `<text x="${ax + (cx - ax) * k}" y="${ay + (cy - ay) * k + 0.45 * rem}" text-anchor="middle" fill="var(--text)" font-size="${1.3 * rem}">${p.name}</text>`;
+    // Its card points at where it is now if it's up, else where it rises; any
+    // point along its track picks it.
+    let at = [ax, ay];
     if (ms(p.aos) <= nowMs && nowMs < ms(p.los)) {
       const pt = p.track.reduce((a, b) => Math.abs(ms(b[0]) - nowMs) < Math.abs(ms(a[0]) - nowMs) ? b : a);
-      const [x, y] = xy(pt[1], pt[2]);
-      g += `<circle cx="${x}" cy="${y}" r="${0.9 * rem}" fill="var(--text)" stroke="${SERIES[n]}" stroke-width="3"/>`;
+      at = xy(pt[1], pt[2]);
+      g += `<circle cx="${at[0]}" cy="${at[1]}" r="${0.9 * rem}" fill="var(--text)" stroke="${colour}" stroke-width="3"/>`;
     }
+    const sub = `${Math.round(p.max_el)}° high · ${dir8(p.aos_az)} → ${dir8(p.los_az)}`;
+    for (const [x, y] of [at, ...p.track.map(([, az, el]) => xy(az, el))]) items.push({ x, y, id: passId(p), name: p.name, sub });
   });
-  svg.setAttribute('viewBox', `0 0 ${S} ${S}`);
   svg.innerHTML = g;
+  hits = { box: svg.parentElement, rem, items };
+  drawChosen(id => passDetails(list.find(p => passId(p) === id), nowMs));
+}
+
+const passId = p => `${p.norad}-${p.aos}`;
+
+// What a pass's card says: when and where to look, and what to tune.
+function passDetails(p, nowMs) {
+  const tz = state.station.timezone;
+  const at = iso => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
+  const mins = d => Math.round(d / 60000);
+  const live = ms(p.aos) <= nowMs;
+  const sat = (state.satellites.satellites || []).find(s => s.norad === p.norad);
+  const mhz = f => f == null ? '—' : f.toFixed(3);
+  const freqs = (sat?.frequencies || []).slice(0, 3).map(f => [f.description || f.mode,
+    `↑${mhz(f.uplink_mhz)} ↓${mhz(f.downlink_mhz)}&nbsp;MHz · ${f.mode}${f.inverting ? ' · inverting' : ''}`, true]);
+  const more = (sat?.frequencies?.length || 0) - freqs.length;
+  const now = live && p.track?.reduce((a, b) => Math.abs(ms(b[0]) - nowMs) < Math.abs(ms(a[0]) - nowMs) ? b : a);
+  const epoch = sat?.epoch && Math.round(state.server_time - new Date(sat.epoch + 'Z').getTime() / 1000);
+  return {
+    name: p.name,
+    sub: live ? `Up now · ${mins(ms(p.los) - nowMs)} min left`
+      : mins(ms(p.aos) - nowMs) < 60 ? `Rises in ${mins(ms(p.aos) - nowMs)} min` : `Rises at ${at(p.aos)}`,
+    big: `${Math.round(p.max_el)}° high <span>${dir8(p.aos_az)}&nbsp;→&nbsp;${dir8(p.los_az)} · ${mins(ms(p.los) - ms(p.aos))}&nbsp;min</span>`,
+    rows: [now && ['Now', `${dir8(now[1])} ${Math.round(now[1])}° · ${Math.round(now[2])}° up`],
+           ['Rises', `${at(p.aos)} · ${dir8(p.aos_az)} ${Math.round(p.aos_az)}°`],
+           p.tca && ['Highest', `${at(p.tca)} · ${Math.round(p.max_el)}°`],
+           ['Sets', `${at(p.los)} · ${dir8(p.los_az)} ${Math.round(p.los_az)}°`],
+           ...freqs, more > 0 && ['More', `${more} other frequenc${more === 1 ? 'y' : 'ies'}`],
+           epoch != null && ['Orbit as of', ago(epoch)]].filter(Boolean),
+  };
 }
 
 // Coastlines for the spot map: Natural Earth's 1:110m land (public domain), as
@@ -792,7 +830,7 @@ function hitsAt(clientX, clientY) {
   const r = hits.box.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
   const reach = 1.6 * hits.rem;      // about a fingertip
   return hits.items.map(h => [Math.hypot(h.x - x, h.y - y), h]).filter(([d]) => d <= reach)
-    .sort((a, b) => a[0] - b[0]).map(([, h]) => h.id);
+    .sort((a, b) => a[0] - b[0]).map(([, h]) => h.id).filter((id, i, all) => all.indexOf(id) === i);   // a track is many points
 }
 
 // A list shows the nearest six of however many are there.
@@ -824,7 +862,7 @@ function drawChosen(details) {
   if (!chosen || chosen.page !== pageName()) return;
   const picked = chosen.ids.map(id => items.find(h => h.id === id)).filter(Boolean);
   if (!picked.length) { unchoose(false); return; }    // gone from the map
-  for (const row of $('feature-body').querySelectorAll('.spots [data-id]'))
+  for (const row of $('feature-body').querySelectorAll(':is(.spots, .passes) [data-id]'))
     row.classList.toggle('chosen', picked.some(h => h.id === row.dataset.id));
   const svg = box.querySelector('svg');
   for (const h of picked) svg.insertAdjacentHTML('beforeend',
@@ -839,19 +877,36 @@ function drawChosen(details) {
     inner = `<div class="kd">${many} · tap one</div>` + picked.map(h =>
       `<div class="pick" data-id="${h.id}"><div class="nm">${h.name}</div><div class="kd">${h.sub}</div></div>`).join('');
   }
-  // Full width where there's room; on a narrow map, as wide as the roomier side allows.
+  // Beside it at full width where there's room. Squeezed beside it, the card
+  // goes above or below it instead if it fits there; failing that, beside it
+  // as wide as the roomier side allows.
   const at = picked[0], W = box.clientWidth, H = box.clientHeight, gap = 2.4 * rem, edge = 0.6 * rem;
   const roomR = W - at.x - gap - edge, roomL = at.x - gap - edge;
+  const card = Object.assign(document.createElement('div'), { innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
+  box.append(card);
+  const fit = () => { card.classList.remove('tight'); if (card.offsetHeight > H - 1.2 * rem) card.classList.add('tight'); return card.offsetHeight; };
+  if (Math.max(roomR, roomL) < 22 * rem && W - 2 * edge >= 22 * rem) {
+    const w = Math.min(28 * rem, W - 2 * edge);
+    card.className = 'card';
+    card.style.width = `${w}px`;
+    const h = fit(), below = H - at.y - gap - edge >= h, above = at.y - gap - edge >= h;
+    if (below || above) {
+      const down = below && (!above || H - at.y >= at.y);
+      const left = Math.min(Math.max(at.x - w / 2, edge), W - w - edge);
+      card.classList.add(down ? 'below' : 'above');
+      Object.assign(card.style, { left: `${left}px`, top: `${down ? at.y + gap : at.y - gap - h}px` });
+      card.style.setProperty('--tip', `${Math.min(Math.max(at.x - left, rem), w - rem)}px`);
+      return;
+    }
+  }
   const right = roomR >= 28 * rem || roomR >= roomL;
   const w = Math.min(28 * rem, right ? roomR : roomL);
-  const card = Object.assign(document.createElement('div'), { className: `card ${right ? 'right' : 'left'}`,
-    innerHTML: `<div class="tip"></div><div class="x">×</div>${inner}` });
+  card.className = `card ${right ? 'right' : 'left'}`;
   card.style.width = `${w}px`;
-  box.append(card);
-  if (card.offsetHeight > H - 1.2 * rem) card.classList.add('tight');    // a long comment in a narrow space
-  const top = Math.min(Math.max(at.y - card.offsetHeight / 2, 0.6 * rem), H - card.offsetHeight - 0.6 * rem);
+  const h = fit();                    // tight: a long comment in a narrow space
+  const top = Math.min(Math.max(at.y - h / 2, edge), H - h - edge);
   Object.assign(card.style, { top: `${top}px`, left: `${right ? at.x + gap : at.x - gap - w}px` });
-  card.style.setProperty('--tip', `${Math.min(Math.max(at.y - top, rem), card.offsetHeight - rem)}px`);
+  card.style.setProperty('--tip', `${Math.min(Math.max(at.y - top, rem), h - rem)}px`);
 }
 
 // Keep as many rows as fit in a list, then say how many more there are.
@@ -924,12 +979,14 @@ const PAGES = [
       return f ? ` · ${f.mode} ↑${f.uplink_mhz?.toFixed(3) ?? '—'} ↓${f.downlink_mhz.toFixed(3)}` : '';
     };
     const plotted = upcoming.slice(0, 3);
-    const body = `<div class="sats"><svg class="sky"></svg><div class="passes">` +
-      upcoming.slice(0, 7).map((p, n) => `<div class="pass"><span>${n < 3 ? `<i style="background:${SERIES[n]}"></i>` : ''}</span>
+    // A pass tapped in the list joins the three on the plot.
+    const extra = chosen?.page === 'satellites' ? upcoming.filter(p => !plotted.includes(p) && chosen.ids.includes(passId(p))) : [];
+    const body = `<div class="sats"><div class="skybox"><svg class="sky"></svg></div><div class="passes">` +
+      upcoming.slice(0, 7).map((p, n) => `<div class="pass" data-id="${passId(p)}"><span>${n < 3 ? `<i style="background:${SERIES[n]}"></i>` : ''}</span>
         <span class="sat">${p.name}</span><span class="${live(p) ? 'up' : ''}">${when(p)}</span><span>${Math.round(p.max_el)}°</span>
         <span class="sub">${dir8(p.aos_az)} → ${dir8(p.los_az)} · ${mins(ms(p.los) - ms(p.aos))} min${radio(p)}</span></div>`).join('') +
       `</div></div>`;
-    return { title, body, credit, draw: el => skyPlot(el.querySelector('.sky'), plotted, nowMs) };
+    return { title, body, credit, draw: el => skyPlot(el.querySelector('.sky'), [...plotted, ...extra], nowMs) };
   },
   function pota() {
     const st = state.station, nowMs = now().getTime();
@@ -1136,7 +1193,7 @@ function tap(e) {
   }
   const side = edgeAt(e.clientX);
   if (side) { goTo(page + side); return; }
-  const row = e.target.closest('.spots [data-id]');     // a row of the list beside the map
+  const row = e.target.closest(':is(.spots, .passes) [data-id]');     // a row of the list beside the map
   if (row) { choose([row.dataset.id]); return; }
   const found = hitsAt(e.clientX, e.clientY);
   if (found.length) choose(found);
@@ -1151,7 +1208,7 @@ function showEdges(e) {
   clearTimeout(shownTimer);
   shownTimer = setTimeout(() => f.classList.remove('touched'), 3000);
   if (e.pointerType === 'mouse')
-    f.classList.toggle('pointing', !!edgeAt(e.clientX) || !!e.target.closest('.card .x, .card .pick, .spots [data-id]') ||
+    f.classList.toggle('pointing', !!edgeAt(e.clientX) || !!e.target.closest('.card .x, .card .pick, :is(.spots, .passes) [data-id]') ||
       (!e.target.closest('.card') && hitsAt(e.clientX, e.clientY).length > 0));
 }
 

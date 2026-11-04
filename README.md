@@ -136,6 +136,13 @@ what the spot's comment says, how many times it has been spotted and by whom
 (a Reverse Beacon Network skimmer is named as one), and when the last spot
 came in.
 
+On the satellites page, tap or click a pass's track on the sky plot, or any
+pass in the list: when it rises, peaks and sets, and in which direction; how
+high it gets; where it is now if it's up; its voice and linear frequencies,
+uplink and downlink, with inverting transponders marked; and how old the orbit
+it was worked out from is. A pass picked from the list that isn't one of the
+three on the plot is drawn there in white.
+
 The card keeps up to date while it's open. Where several sit under your
 finger, as at a busy pier, over an airport, round a city's digipeaters or
 across Europe on the world map, the card lists the nearest six so you can pick

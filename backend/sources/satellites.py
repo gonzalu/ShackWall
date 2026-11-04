@@ -38,8 +38,10 @@ TRANSMITTERS_EVERY_S = 24 * 3600
 
 INTERVAL_S = 300
 HOURS_AHEAD = 24
-# Passes that get a sky track for the page's plot; the rest are listed only.
-TRACKED_PASSES = 6
+# Passes that get a sky track: the page plots three, and any of the seven it
+# lists can be tapped to plot its own; one spare for a pass that ends between
+# refreshes. The rest are listed only.
+TRACKED_PASSES = 8
 TRACK_STEP_S = 20
 
 # Ham-radio voice and linear modes. Digipeaters and telemetry beacons are left
